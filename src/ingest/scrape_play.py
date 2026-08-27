@@ -9,6 +9,7 @@ arrives, so rerunning the same command picks up where it stopped.
 
 import argparse
 import pickle
+import socket
 import time
 
 import psycopg2
@@ -24,6 +25,13 @@ STREAMS = (0, 1, 2, 3, 4, 5)  # 0 = unfiltered, 1..5 = only that star rating
 BATCH = 200                   # reviews per HTTP request
 PAUSE = 1.5                   # seconds between requests, to stay polite
 EMPTY_RETRIES = 3             # see fetch_batch()
+REQUEST_TIMEOUT = 30          # seconds
+
+# google-play-scraper calls urlopen() without a timeout, and Python's default is
+# to wait forever. One silent connection then hangs the whole run with no error
+# and no way for the retry logic below to notice. This makes a stalled request
+# raise instead, so it can be retried.
+socket.setdefaulttimeout(REQUEST_TIMEOUT)
 
 
 def read_checkpoint(conn, app, stream):
@@ -69,16 +77,26 @@ def fetch_batch(app_id, stream, token):
             kwargs["filter_score_with"] = stream
         call = lambda: reviews(app_id, **kwargs)
 
-    delay, new_token = PAUSE, token
+    delay, new_token, last_error = PAUSE, token, None
     for attempt in range(EMPTY_RETRIES + 1):
-        batch, new_token = call()
+        try:
+            batch, new_token = call()
+            last_error = None
+        except Exception as exc:  # timeout, connection reset, changed response shape
+            batch, last_error = [], exc
+            tqdm.write(f"      request failed: {type(exc).__name__}: {exc}")
         if batch:
             return batch, new_token
         if attempt < EMPTY_RETRIES:
-            tqdm.write(f"      empty response — retry {attempt + 1}/{EMPTY_RETRIES} "
+            tqdm.write(f"      no data — retry {attempt + 1}/{EMPTY_RETRIES} "
                        f"in {delay:.0f}s")
             time.sleep(delay)
             delay *= 2
+
+    if last_error is not None:
+        # A failing network is not an exhausted stream. Raise so the run stops
+        # with its checkpoint intact, instead of marking the stream finished.
+        raise last_error
     return [], new_token
 
 
@@ -141,6 +159,9 @@ def main():
                            target - count_reviews(conn, args.app))
         except KeyboardInterrupt:
             print("\nStopped. Progress is saved — rerun the same command to resume.")
+        except Exception as exc:
+            print(f"\nStopped by an error: {type(exc).__name__}: {exc}")
+            print("Progress is saved — rerun the same command to resume.")
         print(f"\n{args.app}: {count_reviews(conn, args.app):,} reviews stored")
 
 
