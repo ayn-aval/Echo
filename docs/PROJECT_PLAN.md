@@ -1,4 +1,4 @@
-# Project brief for coding agent — "Pulse": customer feedback intelligence from app reviews
+# Project brief for coding agent — "Echo": customer feedback intelligence from app reviews
 
 ## How I want you to work with me
 
@@ -51,7 +51,7 @@ Install `faiss-cpu` on the Mac, not `faiss-gpu`. If any library refuses to insta
 Set this up in Phase 0 and stick to it:
 
 ```
-pulse/
+echo/
   data/                 # local files, gitignored
   notebooks/            # Colab notebooks for training
   src/

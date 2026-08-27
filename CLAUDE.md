@@ -1,4 +1,4 @@
-# Pulse — customer feedback intelligence from app reviews
+# Echo — customer feedback intelligence from app reviews
 
 Full phased plan: `docs/PROJECT_PLAN.md`. Read it before starting any new phase.
 Current phase and progress: `docs/PROGRESS.md`. Read it at the start of every session.
