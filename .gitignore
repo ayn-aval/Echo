@@ -1,0 +1,26 @@
+# Virtual environment
+venv/
+.venv/
+
+# Data and models — never committed (CLAUDE.md non-negotiable)
+data/
+models/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+
+# Secrets and local config
+.env
+.env.*
+*.pem
+
+# Streamlit
+.streamlit/secrets.toml
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
