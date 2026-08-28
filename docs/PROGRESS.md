@@ -2,9 +2,12 @@
 
 ## Current status
 
-**Phase 1 — Data collection.** Scrape complete: **100,000 Swiggy reviews** in
-Postgres, 18 Jan – 26 Aug 2026 (220 days), no duplicates. Remaining in this phase:
-cleaning rules, then the exploratory analysis.
+**Phase 1 — Data collection: COMPLETE.** 100,000 Swiggy reviews in Postgres
+(18 Jan – 26 Aug 2026, 220 days, no duplicates), cleaning rules applied and
+recorded, exploratory analysis and four plots in `results/`.
+
+Awaiting confirmation before starting Phase 2 (baselines and the evaluation
+harness).
 
 ## Decisions made
 

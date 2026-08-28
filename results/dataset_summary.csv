@@ -1,0 +1,16 @@
+,value
+reviews_total,100000
+reviews_kept_for_themes,64280
+distinct_texts_kept,45864
+date_from,2026-01-18
+date_to,2026-08-26
+days_covered,220
+avg_rating_all,3.53
+pct_1_star_all,30.7
+pct_5_star_all,53.8
+pct_1_star_kept,45.3
+pct_with_developer_reply,99.9
+median_words_kept,5
+max_words,111
+pct_hinglish,3.6
+pct_devanagari,0.3
