@@ -25,3 +25,6 @@ __pycache__/
 .DS_Store
 .vscode/
 .idea/
+
+# Trained checkpoints
+models/

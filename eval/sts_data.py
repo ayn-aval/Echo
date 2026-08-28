@@ -21,6 +21,7 @@ DATASETS = {
     "STS15": ("mteb/sts15-sts", "test"),
     "STS16": ("mteb/sts16-sts", "test"),
     "STS-B": ("mteb/stsbenchmark-sts", "test"),
+    "SICK-R": ("mteb/sickr-sts", "test"),
 }
 
 
