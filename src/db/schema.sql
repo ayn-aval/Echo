@@ -32,3 +32,12 @@ CREATE TABLE IF NOT EXISTS scrape_checkpoints (
     updated_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (app, score_filter)
 );
+
+-- Cleaning columns, added after the corpus was scraped and inspected.
+-- Raw reviews are never deleted; they are flagged instead, so the Overview
+-- page can still report on all 100,000 while themes use the filtered subset.
+ALTER TABLE reviews ADD COLUMN IF NOT EXISTS word_count      INTEGER;
+ALTER TABLE reviews ADD COLUMN IF NOT EXISTS keep_for_themes BOOLEAN;
+
+CREATE INDEX IF NOT EXISTS ix_reviews_keep
+    ON reviews (app) WHERE keep_for_themes;

@@ -99,6 +99,74 @@ Goal: a real, messy dataset in Postgres.
 
 **Done when:** the database holds cleaned reviews and I can describe the dataset in three sentences.
 
+### Cleaning rules — decided 2026-08-28, against the real 100,000-review corpus
+
+Nothing is deleted. Every review keeps its row; cleaning sets three columns —
+`word_count`, `lang`, and `keep_for_themes`. Applied by `python -m src.ingest.clean`,
+which is safe to re-run.
+
+| Rule | Action | Rows |
+|---|---|---|
+| No text at all | drop | 0 |
+| No alphabetic characters (emoji-only, punctuation-only) | drop | 2,766 |
+| Exactly one word | drop | 35,646 |
+| Two or more words, any language | **keep** | **64,280** |
+
+**Result: 64,280 of 100,000 kept (64.3%)**, containing 45,864 distinct texts.
+
+#### Why these lines and not others
+
+The threshold was set from the repetition cliff in the actual data, not chosen
+in advance:
+
+| Words | Rows | Distinct texts | Repetition |
+|---|---|---|---|
+| 1 | 35,646 | 1,830 | 94.9% |
+| 2–3 | 27,469 | 9,514 | 65.4% |
+| 4–10 | 15,054 | 14,595 | 3.0% |
+| 11–50 | 15,481 | 15,476 | 0.0% |
+| 50+ | 6,350 | 6,350 | 0.0% |
+
+`'good'` alone occurs 15,576 times; `'nice'` 4,482. One-word reviews are 1,830
+distinct strings stretched across 35,646 rows — no theme can be recovered from them.
+
+The cut was placed at **2+ words rather than 4+**. 4+ words is where text becomes
+almost fully distinct (under 3% repetition) and would have kept 36,885 rows. 2+ was
+chosen deliberately to retain short but genuine complaints — "worst service",
+"pathetic service", "bed service" — at the cost of also retaining roughly 18,000
+rows of "good app" / "very nice". Phase 5 should expect one or more large generic-praise
+clusters as a direct consequence, and should report them rather than hide them.
+
+#### Language
+
+Both non-English groups are kept: 3,640 Hinglish (romanised Hindi) and 271
+Devanagari, together 3.9% of the corpus and disproportionately detailed complaints.
+
+`lang` is set by a transparent word-list heuristic, **not** a real language detector.
+Off-the-shelf detectors classify romanised Hindi as English most of the time, so an
+explainable rule was preferred over a black box that is quietly wrong. This is a
+stated limitation, not a claim of accurate language identification.
+
+#### Two of the brief's concerns turned out not to exist
+
+- **Very long reviews need no rule.** The longest review in the corpus is 111 words.
+  Google caps review length, so nothing approaches BERT's 512-token limit and there
+  is nothing to truncate.
+- **Empty reviews do not occur.** 0 of 100,000.
+
+#### Consequences to carry forward
+
+1. **The cleaned corpus is not representative of sentiment.** Filtering short reviews
+   raises the 1-star share, because angry users explain themselves and happy users type
+   "good". Rating distributions, average rating, and volume-over-time must be computed
+   from **all 100,000 rows**; only theme discovery uses the filtered subset.
+2. **Encode distinct texts, not rows.** 64,280 kept rows contain 45,864 distinct texts.
+   Embed each unique text once and map the vector back to every row that shares it.
+   This cuts encoding work by roughly a third and, more importantly, stops HDBSCAN
+   forming one enormous artificial cluster out of thousands of identical vectors.
+3. **Report both numbers.** The honest headline is "100,000 reviews collected, 64,280
+   with enough text to cluster" — not "100,000 reviews analysed".
+
 ## Phase 2 — Baselines and the evaluation harness
 
 Build the measuring stick **before** building the model. This is important — do not skip it.
