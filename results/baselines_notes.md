@@ -68,3 +68,54 @@ paper rather than recalled.
 - `[CLS]` lands far below both other methods, as the paper reports.
 - GloVe beats BERT. Had BERT won, the first suspects would have been attention-mask
   pooling and cosine normalisation, not a genuine discovery.
+
+---
+
+# Review retrieval baselines
+
+26 hand-labelled queries, 721 judgements, 390 marked relevant (median 16 per
+query). Retrieval runs over all 45,864 distinct review texts.
+
+| model | Recall@10 | Precision@10 | MRR |
+|---|---|---|---|
+| tfidf | **46.01** | **65.00** | **85.71** |
+| glove-avg | 37.43 | 58.85 | 78.22 |
+| bert-mean | 27.88 | 43.46 | 74.10 |
+
+Maximum achievable Recall@10 is **71.84**, not 100. With a median of 16 relevant
+reviews per query you cannot fit them all into a top-10, so the ceiling is
+`min(10, n_relevant) / n_relevant`. TF-IDF's 46.01 is therefore **64% of what is
+achievable**, not 46% of perfect.
+
+## The headline: TF-IDF beats both embedding baselines
+
+Plain word-overlap search wins on this data, and mean-pooled BERT comes last —
+the same ordering as the STS results, on a completely different task. Raw BERT
+embeddings are not merely unimpressive at sentence similarity; they are worse than
+counting words.
+
+**This sets the bar Phases 3 and 4 must clear: 46.01 Recall@10 and 65.00
+Precision@10.** It also means "semantic search" is not automatically better than
+keyword search here — the project has to earn that claim rather than assume it.
+
+## Which metric to trust
+
+**Precision@10 separates the models best** (65.00 / 58.85 / 43.46). **MRR
+saturates** — with 16 relevant reviews per query, any competent system lands one
+near rank 1, so all three score 74-86 and the metric barely discriminates. Report
+MRR for completeness, but do not lead with it.
+
+## Bias in this evaluation, stated plainly
+
+The pool was built from these same three systems, so each contributed its own
+top-10 and each gets credit for candidates it surfaced. The bias is roughly
+symmetric between them, so the *ordering* is meaningful.
+
+It is **not** symmetric for the Phase 3/4 models, which could not contribute to a
+pool built before they existed. They will surface relevant reviews nobody labelled,
+which score as misses. Any improvement they show is therefore a **lower bound**.
+If a trained model beats TF-IDF on this eval set, it beat it with a handicap.
+
+Queries were written as natural language rather than the mined corpus phrases, so
+TF-IDF is not being handed its own search terms — "the food was cold by the time
+it arrived" rather than "food cold".

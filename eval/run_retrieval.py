@@ -49,7 +49,7 @@ def load_judgements():
 
 def score(sims, docs, queries, relevant, k=K):
     """sims: (n_queries, n_docs) similarity matrix."""
-    recalls, rrs, used = [], [], 0
+    recalls, precisions, rrs, ceilings, used = [], [], [], [], 0
     for i, qid in enumerate(queries.query_id):
         gold = relevant.get(qid)
         if not gold:
@@ -59,14 +59,23 @@ def score(sims, docs, queries, relevant, k=K):
         ranked = docs.review_id.to_numpy()[order]
 
         top = set(ranked[:k])
-        recalls.append(len(top & gold) / len(gold))
+        hits = len(top & gold)
+        recalls.append(hits / len(gold))
+        precisions.append(hits / k)
+        # With a median of 16 relevant reviews per query you cannot fit them all
+        # into a top-10, so Recall@10 has a hard ceiling below 1. Reporting the
+        # ceiling stops a "low" recall being read as a weak model.
+        ceilings.append(min(k, len(gold)) / len(gold))
 
         hit = next((r for r, rid in enumerate(ranked, 1) if rid in gold), None)
         rrs.append(1.0 / hit if hit else 0.0)
 
+    pct = lambda xs: round(float(np.mean(xs)) * 100, 2)
     return {"queries_scored": used,
-            f"recall@{k}": round(float(np.mean(recalls)) * 100, 2),
-            "mrr": round(float(np.mean(rrs)) * 100, 2)}
+            f"recall@{k}": pct(recalls),
+            f"max_possible_recall@{k}": pct(ceilings),
+            f"precision@{k}": pct(precisions),
+            "mrr": pct(rrs)}
 
 
 def unit(m):
