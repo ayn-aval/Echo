@@ -116,9 +116,10 @@ LIMIT = 150   # most judgements need only the first line
 
 pool = candidates(int(row.query_id))
 with st.form(key=f"q{row.query_id}"):
-    if st.form_submit_button("Save and go to next query", type="primary",
-                             use_container_width=True):
-        pass  # handled below; a top button saves scrolling back up
+    # Two submit buttons in one form need explicit distinct keys — Streamlit
+    # otherwise derives the key from the label and refuses the duplicate.
+    top = st.form_submit_button("Save and go to next query", type="primary",
+                                key=f"top{row.query_id}", use_container_width=True)
     marks = {}
     for i, c in pool.iterrows():
         text = " ".join(str(c.content).split())
@@ -133,9 +134,10 @@ with st.form(key=f"q{row.query_id}"):
             if len(text) > LIMIT:
                 with st.expander("full text"):
                     st.write(text)
-    submitted = st.form_submit_button("Save and go to next query", type="primary",
-                                      use_container_width=True)
-    if submitted:
+    bottom = st.form_submit_button("Save and go to next query", type="primary",
+                                   key=f"bottom{row.query_id}",
+                                   use_container_width=True)
+    if top or bottom:
         save(int(row.query_id), marks)
         st.cache_data.clear()
         st.rerun()
