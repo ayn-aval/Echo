@@ -78,10 +78,17 @@ state = progress()
 done = state[state.judged > 0]
 todo = state[(state.judged == 0) & (state.candidates > 0)]
 
+TARGET = 25   # agreed labelling budget; the rest can be done later
+
 with st.sidebar:
     st.header("Progress")
-    st.metric("Queries labelled", f"{len(done)} / {len(state)}")
-    st.progress(len(done) / max(len(state), 1))
+    st.metric("Queries labelled", f"{len(done)} / {TARGET}",
+              help=f"{len(state)} queries exist in total; {TARGET} is the agreed "
+                   f"budget. Anything beyond it only makes the numbers steadier.")
+    st.progress(min(len(done) / TARGET, 1.0))
+    if len(done) >= TARGET:
+        st.success(f"Target reached — {len(done)} queries labelled. "
+                   f"You can stop here and run the scorer.")
     st.metric("Judgements made", int(state.judged.sum()))
     st.metric("Marked relevant", int(state.relevant.sum()))
     st.caption("Saved to Postgres on every submit. Close the tab whenever you "
@@ -105,19 +112,30 @@ st.caption("Tick every review that a person searching this would want to see. "
            "When unsure, leave it unticked — a doubtful yes is worse than a "
            "confident no, because it inflates every model's score equally.")
 
+LIMIT = 150   # most judgements need only the first line
+
 pool = candidates(int(row.query_id))
 with st.form(key=f"q{row.query_id}"):
+    if st.form_submit_button("Save and go to next query", type="primary",
+                             use_container_width=True):
+        pass  # handled below; a top button saves scrolling back up
     marks = {}
     for i, c in pool.iterrows():
-        left, right = st.columns([1, 11])
+        text = " ".join(str(c.content).split())
+        short = text[:LIMIT] + ("…" if len(text) > LIMIT else "")
+        left, right = st.columns([1, 14], vertical_alignment="center")
         with left:
             marks[c.review_id] = st.checkbox("relevant", key=f"{row.query_id}_{i}",
                                              label_visibility="collapsed")
         with right:
-            st.markdown(f"**{c.score}★** · {c.day}  \n{c.content}")
-        st.divider()
-    if st.form_submit_button("Save and go to next query", type="primary",
-                             use_container_width=True):
+            st.markdown(f"<span style='color:#888;font-size:0.8em'>{c.score}★</span> "
+                        f"{short}", unsafe_allow_html=True)
+            if len(text) > LIMIT:
+                with st.expander("full text"):
+                    st.write(text)
+    submitted = st.form_submit_button("Save and go to next query", type="primary",
+                                      use_container_width=True)
+    if submitted:
         save(int(row.query_id), marks)
         st.cache_data.clear()
         st.rerun()
