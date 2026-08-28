@@ -18,6 +18,14 @@ nothing and reopening resumes at the first unjudged query.
 """
 
 import random
+import sys
+from pathlib import Path
+
+# Streamlit sets sys.path[0] to this file's directory, not the project root, so
+# `src` is invisible unless we put the root on the path ourselves. Running via
+# `python -m` adds the root automatically, which is why every other module in
+# this project works without this. Any future page under app/ needs these lines.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pandas as pd
 import streamlit as st
