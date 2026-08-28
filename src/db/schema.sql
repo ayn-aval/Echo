@@ -41,3 +41,30 @@ ALTER TABLE reviews ADD COLUMN IF NOT EXISTS keep_for_themes BOOLEAN;
 
 CREATE INDEX IF NOT EXISTS ix_reviews_keep
     ON reviews (app) WHERE keep_for_themes;
+
+-- Phase 2: the review-retrieval evaluation set.
+-- eval_pool is persisted so the labelling task is reproducible — the same
+-- candidates every time, rather than regenerated differently on each run.
+CREATE TABLE IF NOT EXISTS eval_queries (
+    query_id    SERIAL PRIMARY KEY,
+    query_text  TEXT        NOT NULL UNIQUE,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS eval_pool (
+    query_id   INTEGER NOT NULL REFERENCES eval_queries(query_id) ON DELETE CASCADE,
+    app        TEXT    NOT NULL,
+    review_id  TEXT    NOT NULL,
+    sources    TEXT    NOT NULL,   -- which retrieval systems surfaced this candidate
+    PRIMARY KEY (query_id, app, review_id),
+    FOREIGN KEY (app, review_id) REFERENCES reviews(app, review_id)
+);
+
+CREATE TABLE IF NOT EXISTS eval_judgements (
+    query_id   INTEGER     NOT NULL REFERENCES eval_queries(query_id) ON DELETE CASCADE,
+    app        TEXT        NOT NULL,
+    review_id  TEXT        NOT NULL,
+    relevant   BOOLEAN     NOT NULL,
+    judged_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (query_id, app, review_id)
+);
