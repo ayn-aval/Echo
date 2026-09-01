@@ -34,7 +34,7 @@ def main() -> None:
     frames = []
 
     print("Averaged GloVe (840B.300d)")
-    frames.append(evaluate_sts(glove.make_encoder(corpus, "sts"), "glove-avg"))
+    frames.append(evaluate_sts(glove.make_encoder(corpus, "sts7"), "glove-avg"))
 
     print("\nBERT mean-pooled (bert-base-uncased)")
     frames.append(evaluate_sts(baselines.make_encoder("mean"), "bert-mean"))
@@ -45,6 +45,14 @@ def main() -> None:
     df = pd.concat(frames, ignore_index=True)
     df["task"] = "sts"
     RESULTS.parent.mkdir(exist_ok=True)
+
+    # Keep any retrieval rows written by eval/run_retrieval.py — the earlier
+    # version of this line overwrote them.
+    if RESULTS.exists():
+        prior = pd.read_csv(RESULTS)
+        keep = prior[prior.get("task", "sts") == "retrieval"]
+        if len(keep):
+            df = pd.concat([df, keep], ignore_index=True)
     df.to_csv(RESULTS, index=False)
 
     table = df.pivot(index="model", columns="dataset", values="spearman")
