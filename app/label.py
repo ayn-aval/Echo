@@ -57,7 +57,9 @@ def candidates(query_id):
             SELECT p.review_id, r.content, r.score, r.reviewed_at::date AS day
               FROM eval_pool p
               JOIN reviews r ON r.app = p.app AND r.review_id = p.review_id
-             WHERE p.query_id = %s""", conn, params=(query_id,))
+              LEFT JOIN eval_judgements j
+                     ON j.query_id = p.query_id AND j.review_id = p.review_id
+             WHERE p.query_id = %s AND j.review_id IS NULL""", conn, params=(query_id,))
     order = list(df.index)
     random.Random(query_id).shuffle(order)   # fixed seed: same order every visit
     return df.loc[order].reset_index(drop=True)
@@ -75,8 +77,11 @@ def save(query_id, marks):
 
 
 state = progress()
-done = state[state.judged > 0]
-todo = state[(state.judged == 0) & (state.candidates > 0)]
+done = state[(state.judged > 0) & (state.judged >= state.candidates)]
+# A query needs attention when any pooled candidate is still unjudged —
+# re-pooling after training a new model adds candidates to queries that
+# were previously complete.
+todo = state[state.judged < state.candidates]
 
 TARGET = 25   # agreed labelling budget; the rest can be done later
 

@@ -30,7 +30,7 @@ import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
 
 from src.db.connection import connection
-from src.embeddings import baselines, glove
+from src.embeddings import baselines, glove, sbert
 
 logging.getLogger("transformers").setLevel(logging.ERROR)
 
@@ -74,6 +74,12 @@ def top_k(query_vecs, doc_vecs, k):
 
 
 def main() -> None:
+    import argparse
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--augment", action="store_true",
+                    help="add a newly trained model's candidates to the existing "
+                         "pool instead of rebuilding it from scratch")
+    args = ap.parse_args()
     docs = load_corpus()
     with connection() as conn:
         queries = pd.read_sql("SELECT query_id, query_text FROM eval_queries "
@@ -101,6 +107,17 @@ def main() -> None:
     d_bert = cached("reviews_bert_mean", lambda: b_encode(texts))
     ranks["bert"] = top_k(b_encode(qtexts), d_bert, TOP_PER_SYSTEM)
 
+    # A model trained after the pool was built retrieves reviews the original
+    # three never surfaced — semantically close but sharing no words. Those score
+    # as misses purely because nobody looked at them, so it has to be pooled in
+    # and judged before its numbers mean anything.
+    trained = Path("models/sbert-distilroberta-300k/encoder")
+    if trained.exists():
+        print("sbert")
+        s_encode = sbert.make_encoder(trained)
+        d_sbert = cached("reviews_sbert_300k", lambda: s_encode(texts))
+        ranks["sbert"] = top_k(s_encode(qtexts), d_sbert, TOP_PER_SYSTEM)
+
     for system, idx in ranks.items():
         for qi, row in enumerate(idx):
             for di in row:
@@ -108,7 +125,8 @@ def main() -> None:
                 hits.setdefault(key, set()).add(system)
 
     with connection() as conn, conn.cursor() as cur:
-        cur.execute("DELETE FROM eval_pool")
+        if not args.augment:
+            cur.execute("DELETE FROM eval_pool")
         for (qid, rid), systems in hits.items():
             cur.execute("INSERT INTO eval_pool (query_id, app, review_id, sources) "
                         "VALUES (%s,'swiggy',%s,%s) ON CONFLICT DO NOTHING",

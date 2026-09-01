@@ -91,3 +91,42 @@ python -m eval.run_sts            # the three baselines, seven datasets
 python -m eval.compare_paper      # the table above
 ```
 Training: `notebooks/phase3_train_sbert.ipynb` on a Colab T4.
+
+## The retrieval evaluation is not yet valid for this model — and why
+
+Running the Phase 2 retrieval eval on the trained model produced Recall@10 of 7.56
+and Precision@10 of 11.54 — worse than the untrained BERT it started from, and
+absurd next to its 72.17 on STS. That number is an **artifact of how the evaluation
+set was built**, not a result, and has been removed from `baselines.csv` rather than
+reported.
+
+| model | % of its top-10 that was ever judged | of those judged, % relevant |
+|---|---|---|
+| tfidf | 100.0% | 65.0% |
+| glove-avg | 100.0% | 58.8% |
+| bert-mean | 100.0% | 43.5% |
+| sbert-distilroberta-300k | **13.8%** | **83.3%** |
+
+The pool was built in Phase 2 from TF-IDF, averaged GloVe and mean-pooled BERT, each
+contributing its top 10 per query. Every result those three return was therefore
+judged. The trained model did not exist then, so **86% of what it retrieves was
+never shown to a human and is scored as irrelevant by default.**
+
+Of the 14% that *was* judged, 83.3% were relevant — the highest precision of any
+model tested, against TF-IDF's 65.0%.
+
+Inspection confirms it. For the query *"refund never arrived after the order was
+cancelled"*, its top results include *"they cancel order and not given any refund"*
+and *"trash app they cancelled my order and gave no refund"* — correct, and mostly
+unjudged, because they share almost no vocabulary with the query and so were never
+surfaced by the three systems that built the pool.
+
+**This is the pooling bias predicted in the Phase 2 plan, arriving far more severely
+than expected**, and the reason is the point of the whole project: the trained model
+finds reviews that match by *meaning* rather than by *words*, which is exactly the
+region of the corpus a lexical pool never covers.
+
+The standard remedy is to re-pool. `python -m eval.build_pool --augment` adds the
+trained model's candidates without discarding existing judgements: 224 new
+candidates across the 26 labelled queries, about ten minutes of labelling. Until
+those are judged, no retrieval number for this model should be quoted.
