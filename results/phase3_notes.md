@@ -130,3 +130,52 @@ The standard remedy is to re-pool. `python -m eval.build_pool --augment` adds th
 trained model's candidates without discarding existing judgements: 224 new
 candidates across the 26 labelled queries, about ten minutes of labelling. Until
 those are judged, no retrieval number for this model should be quoted.
+
+## Re-scored after re-pooling — and TF-IDF still wins
+
+224 candidates from the trained model were added to the pool and judged (89 of
+them relevant, a 40% hit rate). Coverage is now equalised, so the comparison is
+finally like-for-like:
+
+| model | top-10 judged | Recall@10 | Precision@10 | MRR |
+|---|---|---|---|---|
+| **tfidf** | 100.0% | **38.70** | **65.00** | **85.71** |
+| glove-avg | 100.0% | 30.41 | 58.85 | 78.22 |
+| sbert-distilroberta-300k | 96.2% | 23.46 | 45.77 | 72.25 |
+| bert-mean | 100.0% | 22.69 | 43.46 | 74.10 |
+
+The trained model went from 7.56 to 23.46 Recall@10 once its results were actually
+judged — but **it still loses to keyword search, and only just beats the untrained
+BERT it started from.**
+
+The earlier 83.3% figure was measured on the 14% of its results that happened to
+overlap the lexical pool. That was a biased sample: results sharing vocabulary with
+the query are more likely relevant, so it flattered the model. With near-full
+coverage the honest number is 47.6% precision on judged results.
+
+Note which metric moved. **Precision@10 is unchanged for all three baselines**
+(65.00 / 58.85 / 43.46 before and after) because it depends only on which of the
+top ten are relevant. **Recall@10 fell for everyone** (TF-IDF 46.01 → 38.70) because
+89 more relevant reviews entered the denominator. Precision is the metric to quote
+when a test collection is still growing; recall is not comparable across pool
+revisions.
+
+## What this means, and why it is the right result to get here
+
+**Scoring 72.17 on STS and 45.77 Precision@10 on app reviews is not a contradiction
+— it is the finding.** Generic sentence-similarity ability does not transfer to this
+corpus.
+
+The training data is SNLI and MultiNLI: clean, grammatical, mostly image captions
+and formal prose. The corpus is Swiggy reviews — three words on average, frequently
+misspelled, often romanised Hindi. The queries are well-formed English sentences
+while the documents are not, so the model is asked to bridge a register gap it never
+saw in training.
+
+`PROJECT_PLAN.md` opens Phase 4 with exactly this sentence: *"Generic STS
+performance is not the same as performance on app reviews."* This measurement is the
+evidence for that claim, and it establishes the number Phase 4 has to beat —
+**45.77 Precision@10, against TF-IDF's 65.00.**
+
+A reproduction that only reported the STS score would have looked better and taught
+less.
