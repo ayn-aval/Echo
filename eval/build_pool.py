@@ -14,12 +14,14 @@ The three systems are deliberately unalike:
 Pooling from a lexical system alone would build a test set that rewards string
 matching, which is exactly what this project argues against.
 
-Known limitation, stated rather than hidden: the Phase 3/4 model cannot contribute
-to the pool because it does not exist yet. It may find genuinely relevant reviews
-nobody labelled, which score as misses. The improvement we report later is
-therefore a lower bound.
+Every trained model in src.embeddings.sbert.TRAINED is pooled in too, on top of
+the three above. This is not optional. A model trained after the pool was built
+retrieves reviews the earlier systems never surfaced — semantically close but
+sharing no words — and those score as misses purely because nobody looked at
+them. In Phase 3 that alone made the trained model look worse than untrained
+BERT. Run with --augment after training anything new, then label the additions.
 
-    python -m eval.build_pool
+    python -m eval.build_pool --augment
 """
 
 import logging
@@ -111,12 +113,11 @@ def main() -> None:
     # three never surfaced — semantically close but sharing no words. Those score
     # as misses purely because nobody looked at them, so it has to be pooled in
     # and judged before its numbers mean anything.
-    trained = Path("models/sbert-distilroberta-300k/encoder")
-    if trained.exists():
-        print("sbert")
-        s_encode = sbert.make_encoder(trained)
-        d_sbert = cached("reviews_sbert_300k", lambda: s_encode(texts))
-        ranks["sbert"] = top_k(s_encode(qtexts), d_sbert, TOP_PER_SYSTEM)
+    for name, (path, cache) in sbert.available().items():
+        print(name)
+        s_encode = sbert.make_encoder(path)
+        d_sbert = cached(cache, lambda e=s_encode: e(texts))
+        ranks[name] = top_k(s_encode(qtexts), d_sbert, TOP_PER_SYSTEM)
 
     for system, idx in ranks.items():
         for qi, row in enumerate(idx):

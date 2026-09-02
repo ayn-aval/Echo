@@ -1,0 +1,17 @@
+model,dataset,n_pairs,spearman,task
+sbert-distilroberta-300k,STS12,3108,67.2,sts
+sbert-distilroberta-300k,STS13,1500,73.71,sts
+sbert-distilroberta-300k,STS14,3750,69.11,sts
+sbert-distilroberta-300k,STS15,3000,75.58,sts
+sbert-distilroberta-300k,STS16,1186,72.35,sts
+sbert-distilroberta-300k,STS-B,1379,75.6,sts
+sbert-distilroberta-300k,SICK-R,9927,71.63,sts
+sbert-distilroberta-300k,Avg,23850,72.17,sts
+sbert-domain,STS12,3108,64.92,sts
+sbert-domain,STS13,1500,79.09,sts
+sbert-domain,STS14,3750,71.48,sts
+sbert-domain,STS15,3000,78.41,sts
+sbert-domain,STS16,1186,75.79,sts
+sbert-domain,STS-B,1379,77.65,sts
+sbert-domain,SICK-R,9927,74.46,sts
+sbert-domain,Avg,23850,74.54,sts

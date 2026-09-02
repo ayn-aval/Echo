@@ -2,7 +2,7 @@
 
 ## Current status
 
-**Phases 0, 1, 2 and 3 complete — ablation included.**
+**Phases 0, 1, 2, 3 and 4 complete.**
 
 | phase | state |
 |---|---|
@@ -10,11 +10,13 @@
 | 1 — Data collection | done — 100,000 Swiggy reviews in Postgres |
 | 2 — Baselines + eval harness | done — STS and review-retrieval baselines measured |
 | 3 — Reproduce SBERT | **done. 72.17 vs paper's 74.21; ablation run** |
-| 4 — Domain adaptation | not started. Target: beat 45.77 Precision@10 |
+| 4 — Domain adaptation | **done. Precision@10 45.77 -> 61.15, STS 72.17 -> 74.54** |
+| 5 — Theme discovery | not started |
 
-**Immediate next step:** Phase 4 — domain adaptation. `sentence-transformers` is
-allowed from here on. The README write-up is still undrafted; material for it is
-in `results/phase3_notes.md`.
+**Immediate next step:** the user's call between Phase 5 (theme discovery) and
+Phase 4b (the pair-source ablation, set up but not run —
+`notebooks/phase4b_ablation_kaggle.ipynb`). The README write-up is still
+undrafted; material is in `results/phase3_notes.md` and `results/phase4_notes.md`.
 
 ---
 
@@ -24,8 +26,9 @@ in `results/phase3_notes.md`.
 zero duplicates, 46 MB. Scraped entirely from the unfiltered stream — the five
 per-rating backup streams were never needed.
 
-- **99.9% carry a Swiggy reply.** This is the Phase 4 weak-supervision signal and
-  it is close to universal, stronger than the brief assumed.
+- **99.9% carry a Swiggy reply** — but Phase 4 measured the signal and it is
+  **star rating only**, not complaint category. See the Phase 4 section; the
+  replies were rejected as a training signal. Coverage was never the problem.
 - Ratings are bimodal: 30.7% one-star, 53.8% five-star.
 - ~270 reviews/day. Volume dipped to ~150/day for two weeks in late April 2026 and
   recovered — **this is real, not a scraping gap** (zero days missing). Phase 8
@@ -163,6 +166,92 @@ quarter-size model.
 
 ---
 
+## Phase 4 — Domain adaptation
+
+Full write-up in `results/phase4_notes.md`.
+
+**Precision@10 45.77 -> 61.15 and STS 72.17 -> 74.54 at the same time.** The
+phase target was to beat 45.77. TF-IDF still wins at 65.00, so the gap narrowed
+from 19.23 points to 3.85 rather than closing.
+
+### The project plan's premise was false, and had to be measured
+
+`PROJECT_PLAN.md` assumes Swiggy's replies are templated by complaint category.
+They are templated by **star rating** and carry nothing else — 0.7% of replies
+name any complaint topic, 73 of 91 frequent replies go to exactly one rating, and
+with the rating held fixed a TF-IDF classifier cannot predict which of 23
+one-star templates was sent (8.12% vs 8.63% majority). Reproducible with
+`python -m eval.reply_signal`. Pairing on replies would have taught the model
+that a UPI outage and a late delivery mean the same thing.
+
+**Used instead** (`python -m src.training.mine_pairs`, 53,061 pairs):
+7,197 **mined** pairs where TF-IDF *and* the Phase 3 encoder independently agree
+— the TF-IDF constraint is what stops the encoder echoing itself, and dropping it
+yields ~85k pairs that drift back to matching on sentiment — plus 45,864
+**simcse** self-pairs, where a false positive is impossible by construction.
+Mined-pair precision is **~80%, not clean**; the failure mode is a shared
+syntactic frame ("not giving discount" / "not giving cod option").
+
+### Retrieval — the trained model finally beats GloVe, but not TF-IDF
+
+| model | Recall@10 | Precision@10 | MRR |
+|---|---|---|---|
+| tfidf | 34.88 | **65.00** | 85.71 |
+| glove-avg | 26.90 | 58.85 | 78.22 |
+| bert-mean | 19.83 | 43.46 | 74.10 |
+| sbert-distilroberta-300k | 20.57 | 45.77 | 72.25 |
+| **sbert-domain** | 27.86 | **61.15** | 83.81 |
+
+**Two checks that make this trustworthy.** Every previously-measured model
+returned *identical* Precision@10 and MRR to Phase 3, to the decimal — only
+Recall moved, and only because 67 more relevant reviews entered the denominator,
+exactly as the Phase 3 lesson predicts. And pooling coverage is symmetric: 100%
+for the three lexical/baseline systems, **96.15% for both trained models**, so
+their comparison is fair and both are slightly understated against TF-IDF.
+
+### STS went up, not down — the prediction was wrong
+
+72.17 -> **74.54**, six of seven datasets improving. Specialisation was expected
+to cost generic performance and did not. Contrastive training improves sentence
+embeddings largely independently of the corpus: it spreads out the vector space,
+the same anisotropy problem behind `bert-mean`'s 52.64 in Phase 2. Training on
+Swiggy reviews fixed a defect that had nothing to do with Swiggy.
+
+Checked because the result was surprisingly good: **zero overlap** between the
+28,663 STS sentences and the 44,978 training texts, and Phase 3 reproduces its
+Colab numbers exactly on MPS, so this is not a cross-machine artifact.
+
+**Do not write "we beat the paper."** 74.54 exceeds the paper's 74.21 for
+SRoBERTa-NLI-base, but their number is NLI training alone and ours adds a second
+stage they never ran. Different recipe, not a better result on the same one.
+
+### Open limitations
+
+- **Part of the retrieval gain may be circular** — the mined pairs required
+  TF-IDF to agree, so the model may have partly learned to imitate the system
+  that wins this benchmark. Phase 4b is built to settle it.
+- **The two pair sources are not separated.** `--sources mined|simcse` and
+  `notebooks/phase4b_ablation_kaggle.ipynb` are ready; retrieval for the variants
+  needs one more re-pool and labelling round, STS needs none.
+- **Hinglish is still not bridged.** "khana thanda tha" vs "the food was cold"
+  scores 0.066 against 0.049 for an unrelated pair. Phase 3 was no better.
+- 14 pooled candidates on *"my Instamart order had a problem"* remain unjudged,
+  10 of them since Phase 3.
+
+### Lessons worth carrying
+
+1. **Check a plan's stated premise against the data before building on it.**
+   Two of Phase 4's three proposed strategies were dead, and one SQL query plus
+   one classifier settled it in minutes.
+2. **Smoke-test the training path locally before spending a GPU session.** Doing
+   so caught three Kaggle-fatal problems: `sentence-transformers` 6 needs
+   `accelerate`, its `losses`/`models` import paths are deprecated, and the
+   Phase 3 anti-library guard needed confirming inert.
+3. **Check tensor names after a cross-machine round trip.** Kaggle saved
+   LayerNorm as `gamma`/`beta` where the local transformers uses `weight`/`bias`.
+   The remapping happened, but had it not, those layers would have loaded
+   randomly initialised and still produced plausible-looking vectors.
+
 ## Decisions made
 
 | decision | why |
@@ -175,6 +264,8 @@ quarter-size model.
 | Paper-exact training config | so a shortfall cannot be blamed on batch size or LR |
 | Debug runs local, real runs on Colab | faster iteration; no Colab GPU spent on a broken loop |
 | Training code in `src/`, notebook as thin driver | notebooks are JSON and undiffable; the loop is the portfolio artifact |
+| GPU runs on Kaggle, not Colab | user's call; `CLAUDE.md` and `PROJECT_PLAN.md` still say Colab. Kaggle mounts data read-only at `/kaggle/input/`, writes to `/kaggle/working/`, and has no Drive |
+| Phase 4 pairs: mined + SimCSE | user's call after seeing real example pairs from all four candidate strategies; the two reply-based strategies in the plan were measured and rejected |
 
 ## Known rough edges
 
@@ -207,28 +298,28 @@ quarter-size model.
 
 ## Exact next step
 
-**Phase 4 — domain adaptation.** Concrete target: **beat 45.77 Precision@10**
-(TF-IDF's 65.00 is the number that would make the trained model genuinely useful).
-`sentence-transformers` is allowed from Phase 4 onward; Phase 3's raw-PyTorch rule
-does not extend forward.
+**Phase 4 is complete.** Two options, the user's call:
 
-1. **Weak-supervision pairs from the Swiggy data.** The signal is confirmed: 99.9%
-   of reviews carry a Swiggy reply, and the replies are templated by complaint
-   category. Propose two or three pairing strategies (review-with-its-own-reply;
-   two reviews sharing a near-identical reply; others), show real example pairs
-   from each, and recommend which gives the cleanest positives — then the user
-   picks.
-2. **Continue fine-tuning the Phase 3 encoder** with `MultipleNegativesRankingLoss`.
-   Starting point: `models/sbert-distilroberta-300k/encoder` (gitignored).
-3. **Re-pool before evaluating.** `python -m eval.build_pool --augment` — this is
-   mandatory for any new model (lesson 1 above), or the comparison is invalid.
-4. **Three-way table:** baseline vs Phase 3 SBERT vs domain-adapted SBERT, on
-   Recall@10 and MRR. Re-run STS as well and explain the tradeoff if generic
-   performance degraded — a drop there is an expected cost of specialisation, and
-   is reported, not hidden.
+**A — Phase 4b, the pair-source ablation.** Set up but not run:
+`notebooks/phase4b_ablation_kaggle.ipynb`, two runs on the existing
+`echo-phase4` Kaggle dataset, ~20 minutes. It answers the open question of
+whether the mined pairs or SimCSE produced the gain, and whether the retrieval
+improvement is partly the model learning to imitate TF-IDF. STS comes free;
+**retrieval for the variants needs one more re-pool and labelling round.**
 
-Still outstanding from Phase 3: the honest README paragraph, material in
-`results/phase3_notes.md`.
+**B — Phase 5, theme discovery.** Encode all reviews with `sbert-domain`, then
+UMAP + HDBSCAN, and cluster three times (GloVe / plain BERT / sbert-domain) for
+the comparison table. Note from Phase 1: expect large generic-praise clusters as
+a direct consequence of the 2+ word threshold, and report them rather than hide
+them.
+
+Also outstanding:
+- The honest README paragraph, material in `results/phase3_notes.md` and
+  `results/phase4_notes.md`.
+- 14 unjudged pooled candidates on *"my Instamart order had a problem"*.
+- 24 of the 50 evaluation queries were never labelled.
+- `CLAUDE.md` and `PROJECT_PLAN.md` still say Colab for training; actual runs
+  use Kaggle. Ask before editing — they are portfolio documents.
 
 ## Commands
 
@@ -240,4 +331,8 @@ python -m eval.compare_paper    # side-by-side against the paper's Table 1
 python -m eval.diagnostics      # structural checks + scaling curve
 python -m eval.build_pool --augment   # re-pool after training a new model
 streamlit run app/label.py      # relevance labelling
+python -m eval.reply_signal     # Phase 4: are replies category- or rating-templated?
+python -m eval.run_sts_trained  # STS for every trained encoder on disk
+python -m src.training.mine_pairs        # rebuild the Phase 4 training pairs
+python -m src.training.train_domain      # Phase 4 fine-tuning (also runs on Kaggle)
 ```

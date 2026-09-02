@@ -50,9 +50,18 @@ def build_model(encoder_path: Path, max_seq_length: int):
     return SentenceTransformer(modules=[word, pool]), pooling
 
 
-def load_pairs(path: Path, mined_repeat: int, seed: int):
-    """Read the JSONL written by src/training/mine_pairs.py."""
+def load_pairs(path: Path, mined_repeat: int, seed: int, sources=None):
+    """Read the JSONL written by src/training/mine_pairs.py.
+
+    sources: keep only these pair sources ("mined", "simcse"), or None for all.
+    Training on one source at a time is how Phase 4b attributes the gain — the
+    combined run cannot tell us whether the mined pairs or SimCSE did the work.
+    """
     rows = [json.loads(line) for line in path.open()]
+    if sources:
+        rows = [r for r in rows if r["source"] in sources]
+        if not rows:
+            raise SystemExit(f"no pairs left after filtering to {sorted(sources)}")
     examples, counts = [], {}
     for r in rows:
         n = mined_repeat if r["source"] == "mined" else 1
@@ -78,13 +87,16 @@ def main() -> None:
                     help="oversample the mined pairs; simcse outnumbers them 6:1")
     ap.add_argument("--steps-per-epoch", type=int, default=None,
                     help="cut the run short — for smoke tests only")
+    ap.add_argument("--sources", nargs="+", choices=["mined", "simcse"],
+                    default=None, help="train on a subset of pair sources "
+                                       "(Phase 4b ablation); default is all")
     ap.add_argument("--seed", type=int, default=42)
     args = ap.parse_args()
 
     torch.manual_seed(args.seed)
     device = get_device()
     model, pooling = build_model(args.encoder, args.max_seq_length)
-    examples = load_pairs(args.pairs, args.mined_repeat, args.seed)
+    examples = load_pairs(args.pairs, args.mined_repeat, args.seed, args.sources)
 
     # drop_last matters: a short final batch gives MNRL fewer negatives, so the
     # last step would be measured against an easier problem than every other.

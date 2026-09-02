@@ -121,18 +121,17 @@ def main() -> None:
                  **score(unit(b_encode(qtexts)) @ unit(d_bert).T,
                          docs, queries, relevant)})
 
-    # The Phase 3 model, if its encoder has been downloaded from Colab. Same
-    # encode() interface as every baseline above — that is the whole point of
-    # building the harness before the model.
-    trained = Path("models/sbert-distilroberta-300k/encoder")
-    if trained.exists():
-        s_encode = sbert.make_encoder(trained)
-        d_sbert = cached("reviews_sbert_300k", lambda: s_encode(texts))
-        rows.append({"model": "sbert-distilroberta-300k",
+    # One row per trained encoder on disk. Same encode() interface as every
+    # baseline above — that is the whole point of building the harness first.
+    trained = sbert.available()
+    if not trained:
+        print("(no trained encoder on disk — baselines only)")
+    for name, (path, cache) in trained.items():
+        s_encode = sbert.make_encoder(path)
+        d_sbert = cached(cache, lambda e=s_encode: e(texts))
+        rows.append({"model": name,
                      **score(unit(s_encode(qtexts)) @ unit(d_sbert).T,
                              docs, queries, relevant)})
-    else:
-        print(f"(no trained encoder at {trained} — baselines only)")
 
     df = pd.DataFrame(rows)
     print(df.to_string(index=False))

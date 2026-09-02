@@ -20,6 +20,21 @@ from src.training.model import pool
 from src.utils.device import get_device
 
 
+# Every trained encoder the evaluation harness knows about, newest last.
+# name -> (encoder path, embedding-cache name). Add a model here and it appears
+# in the pool, the retrieval table and the STS table automatically.
+TRAINED = {
+    "sbert-distilroberta-300k": ("models/sbert-distilroberta-300k/encoder",
+                                 "reviews_sbert_300k"),
+    "sbert-domain": ("models/sbert-domain/encoder", "reviews_sbert_domain"),
+}
+
+
+def available():
+    """The subset of TRAINED whose encoder is actually on disk."""
+    return {n: (Path(p), c) for n, (p, c) in TRAINED.items() if Path(p).exists()}
+
+
 def make_encoder(path, batch_size: int = 64, max_length: int = 128,
                  quiet: bool = False):
     path = Path(path)
