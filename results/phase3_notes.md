@@ -179,3 +179,86 @@ evidence for that claim, and it establishes the number Phase 4 has to beat —
 
 A reproduction that only reported the STS score would have looked better and taught
 less.
+
+---
+
+# Phase 3b — the Table 6 ablation
+
+Nine runs on Kaggle (T4), `distilroberta-base`, 100,000 pairs each, scored on STS-B.
+Three pooling strategies and seven concatenation variants; `mean` + `(u,v,|u−v|)` is
+the shared reference point of both halves, which is how ten configurations fit into
+nine runs. Reduced scale is deliberate — the ablation is about the *ordering* of
+configurations, not their absolute values.
+
+| config | ours | paper | delta |
+|---|---|---|---|
+| pooling:mean | 68.18 | 80.78 | −12.60 |
+| pooling:max | 66.12 | 79.07 | −12.95 |
+| pooling:cls | 63.05 | 79.80 | −16.75 |
+| concat:u,v | 52.98 | 66.04 | −13.06 |
+| concat:\|u−v\| | 62.22 | 69.78 | −7.56 |
+| concat:u*v | 53.10 | 70.54 | −17.44 |
+| concat:\|u−v\|,u*v | 69.67 | 78.37 | −8.70 |
+| concat:u,v,u*v | 60.38 | 77.44 | −17.06 |
+| concat:u,v,\|u−v\|,u*v | 70.93 | 80.44 | −9.51 |
+
+Every absolute score sits 7–17 points below the paper's, which is expected at 100k
+pairs on a quarter-size model. The comparison that matters is the ordering.
+
+## Claim 1 — `|u−v|` is the critical component. **Holds.**
+
+    (u,v) 52.98 -> (u,v,|u-v|) 68.18   +15.20   (paper: +14.74)
+
+Our margin is slightly *larger* than the paper's, on a third of the training data and
+a smaller model. And it is not one comparison: **every configuration containing
+`|u−v|` scores between 62.22 and 70.93, every configuration without it between 52.98
+and 60.38. The two groups do not overlap at all.** The element-wise difference is
+what lets the classifier represent "how far apart are these two sentences" at all;
+without it the head sees two absolute positions and has to learn the comparison
+itself, which one epoch is not enough to do.
+
+This is the paper's central architectural claim, reproduced independently.
+
+## Claim 2 — adding `u*v` hurts. **Does not hold.**
+
+    (u,v,|u-v|) 68.18 -> +u*v 70.93   +2.75   (paper: -0.34)
+
+We find `u*v` clearly *helpful* where the paper finds it slightly harmful. Worth
+being precise about why this is not simply noise: our effect is eight times the size
+of the paper's and points the other way. The paper's own −0.34 is small enough to be
+a coin-flip between seeds; +2.75 is not.
+
+The likely explanation — and it is a hypothesis, not a measurement — is that at 100k
+pairs the model is undertrained, so richer input features still buy the classifier
+something. The paper's fully-trained encoder has enough signal in `(u,v,|u−v|)` that
+the product is redundant. **We ran one seed per configuration, so we cannot fully
+separate this from run-to-run variance.** Confirming it would mean three seeds per
+config at full scale, which is a bigger GPU budget than this phase justifies.
+
+## Pooling — right winner, wrong loser
+
+MEAN 68.18 > MAX 66.12 > CLS 63.05. MEAN wins, as in the paper. But the paper places
+CLS *second* at 79.80 and MAX last at 79.07 — a 0.98 spread. Ours puts CLS last by
+5.13.
+
+This is consistent with the Phase 2 baseline, where `bert-cls` scored 31.44 against
+`bert-mean`'s 52.64. The CLS token is not a sentence representation until training
+makes it one; with 100k pairs it has not yet become one. MEAN averages real token
+vectors and is useful from step zero, which is why it is both the paper's choice and
+the safe default at every scale we can afford.
+
+## What this ablation is and is not
+
+It is evidence about *ordering* at 100k pairs: `|u−v|` is decisive, mean pooling
+wins. It is not evidence about absolute performance, and one seed per configuration
+means the Claim 2 reversal is reported as a finding to explain, not a correction to
+the paper.
+
+## Reproducing
+
+```bash
+python -m eval.ablation --pairs 100000     # skips configs already in results/ablation.csv
+```
+
+Training: `notebooks/phase3b_ablation_kaggle.ipynb` (Kaggle T4, ~90 min) or
+`notebooks/phase3b_ablation.ipynb` (Colab). Raw scores in `results/ablation.csv`.

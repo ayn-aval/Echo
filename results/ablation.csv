@@ -1,0 +1,10 @@
+config,spearman
+pooling:mean,68.18
+pooling:max,66.12
+pooling:cls,63.05
+"concat:u,v",52.98
+concat:|u-v|,62.22
+concat:u*v,53.1
+"concat:|u-v|,u*v",69.67
+"concat:u,v,u*v",60.38
+"concat:u,v,|u-v|,u*v",70.93

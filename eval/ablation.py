@@ -89,10 +89,11 @@ def main() -> None:
     print(f"\n{'=' * 62}\nTable 6 ablation — {args.model}, {args.pairs:,} pairs, STS-B\n")
     print(df.to_string())
 
-    con = df[df.index.str.startswith("concat:")]
-    if {"concat:u,v", "concat:u,v,|u-v|", "concat:u,v,|u-v|,u*v"} <= set(con.index):
-        base, plus, plusprod = (con.loc[f"concat:{k}", "spearman"] for k in
-                                ("u,v", "u,v,|u-v|", "u,v,|u-v|,u*v"))
+    # (u,v,|u-v|) is not its own row -- it is the `pooling:mean` run, the shared
+    # reference point of both halves of the table. Read the reference value there.
+    ref = ("concat:u,v", "pooling:mean", "concat:u,v,|u-v|,u*v")
+    if set(ref) <= set(df.index):
+        base, plus, plusprod = (df.loc[k, "spearman"] for k in ref)
         print(f"\nCLAIM 1 — |u-v| is the critical component:")
         print(f"  (u,v) {base:.2f} -> (u,v,|u-v|) {plus:.2f}   {plus - base:+.2f}"
               f"   {'HOLDS' if plus > base else 'DOES NOT HOLD'}"

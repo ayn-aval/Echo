@@ -2,18 +2,19 @@
 
 ## Current status
 
-**Phases 0, 1 and 2 complete. Phase 3 complete except its ablation.**
+**Phases 0, 1, 2 and 3 complete — ablation included.**
 
 | phase | state |
 |---|---|
 | 0 — Setup | done (Streamlit hello-world skipped; not needed until Phase 7) |
 | 1 — Data collection | done — 100,000 Swiggy reviews in Postgres |
 | 2 — Baselines + eval harness | done — STS and review-retrieval baselines measured |
-| 3 — Reproduce SBERT | **72.17 vs paper's 74.21.** Ablation not yet run |
+| 3 — Reproduce SBERT | **done. 72.17 vs paper's 74.21; ablation run** |
 | 4 — Domain adaptation | not started. Target: beat 45.77 Precision@10 |
 
-**Immediate next step:** run `notebooks/phase3b_ablation.ipynb` on Colab (T4,
-~90 min), then draft the README write-up, then Phase 4.
+**Immediate next step:** Phase 4 — domain adaptation. `sentence-transformers` is
+allowed from here on. The README write-up is still undrafted; material for it is
+in `results/phase3_notes.md`.
 
 ---
 
@@ -105,6 +106,32 @@ precisely the gap PROJECT_PLAN.md opens Phase 4 with: generic sentence-similarit
 ability does not transfer to three-word misspelled Hinglish reviews when the model
 was trained on clean grammatical prose. **Phase 4 must beat 45.77 Precision@10.**
 
+### Phase 3b — the Table 6 ablation
+
+Nine runs on Kaggle (T4), 100k pairs each, scored on STS-B. Full table and
+reasoning in `results/phase3_notes.md`; raw scores in `results/ablation.csv`.
+
+**Claim 1 — `|u-v|` is the critical component. HOLDS.** `(u,v)` 52.98 ->
+`(u,v,|u-v|)` 68.18, a margin of **+15.20 against the paper's +14.74** — slightly
+larger than the paper's, on a third of the data. Stronger still as a group: every
+configuration containing `|u-v|` scores 62.22-70.93, every one without it scores
+52.98-60.38, **with no overlap.** The paper's central architectural claim
+reproduces independently.
+
+**Claim 2 — adding `u*v` hurts. DOES NOT HOLD.** `(u,v,|u-v|)` 68.18 -> `+u*v`
+70.93, so **+2.75 where the paper reports -0.34.** Our effect is eight times the
+paper's margin and opposite in sign, so this is not simply noise. Hypothesis, not
+measurement: at 100k pairs the model is undertrained and richer features still
+help, where the paper's fully-trained encoder finds the product redundant. **One
+seed per configuration — we cannot fully separate this from variance.** Report it
+as a finding to explain, never as a correction to the paper.
+
+**Pooling — right winner, wrong loser.** MEAN 68.18 > MAX 66.12 > CLS 63.05. MEAN
+wins as in the paper, but the paper has CLS *second* (0.98 spread); ours has it
+last by 5.13. Consistent with the Phase 2 baseline, where `bert-cls` scored 31.44
+against `bert-mean`'s 52.64: the CLS token is not a sentence representation until
+training makes it one.
+
 ### Two methodology lessons — do not repeat
 
 1. **Pooling bias nearly produced a wrong headline.** The first retrieval run gave
@@ -170,17 +197,38 @@ quarter-size model.
 - **When patching a file with `str.replace()`, assert the old text was found.**
   This file sat stale for two whole phases because non-matching edits reported
   success.
+- **A guard that silently skips is the same failure in another costume.**
+  `eval/ablation.py` gated its CLAIM summary on a row named `concat:u,v,|u-v|`
+  that `configs()` deliberately never produces — that configuration *is* the
+  `pooling:mean` run. The condition was never true, so the ablation printed its
+  table and silently omitted both findings. Fixed at `eval/ablation.py:92-96`.
+  **When a block of output is conditional, make the else branch say why it
+  skipped.**
 
 ## Exact next step
 
-1. **Run `notebooks/phase3b_ablation.ipynb` on Colab** (T4, ~90 min). Nine training
-   runs at 100k pairs, testing the paper's Table 6 claims: `|u-v|` is the critical
-   component (paper: +14.74) and adding `u*v` hurts (paper: -0.34, a small margin
-   that may not survive a smaller subset). Re-running the cell after a disconnect
-   skips completed configurations.
-2. Draft the honest README paragraph — material is in `results/phase3_notes.md`.
-3. **Phase 4 — domain adaptation.** Concrete target: beat 45.77 Precision@10.
-   The weak-supervision signal is confirmed: 99.9% of reviews have a Swiggy reply.
+**Phase 4 — domain adaptation.** Concrete target: **beat 45.77 Precision@10**
+(TF-IDF's 65.00 is the number that would make the trained model genuinely useful).
+`sentence-transformers` is allowed from Phase 4 onward; Phase 3's raw-PyTorch rule
+does not extend forward.
+
+1. **Weak-supervision pairs from the Swiggy data.** The signal is confirmed: 99.9%
+   of reviews carry a Swiggy reply, and the replies are templated by complaint
+   category. Propose two or three pairing strategies (review-with-its-own-reply;
+   two reviews sharing a near-identical reply; others), show real example pairs
+   from each, and recommend which gives the cleanest positives — then the user
+   picks.
+2. **Continue fine-tuning the Phase 3 encoder** with `MultipleNegativesRankingLoss`.
+   Starting point: `models/sbert-distilroberta-300k/encoder` (gitignored).
+3. **Re-pool before evaluating.** `python -m eval.build_pool --augment` — this is
+   mandatory for any new model (lesson 1 above), or the comparison is invalid.
+4. **Three-way table:** baseline vs Phase 3 SBERT vs domain-adapted SBERT, on
+   Recall@10 and MRR. Re-run STS as well and explain the tradeoff if generic
+   performance degraded — a drop there is an expected cost of specialisation, and
+   is reported, not hidden.
+
+Still outstanding from Phase 3: the honest README paragraph, material in
+`results/phase3_notes.md`.
 
 ## Commands
 
