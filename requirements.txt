@@ -23,3 +23,6 @@ accelerate==1.14.0
 umap-learn==0.5.12
 hdbscan==0.8.44
 plotly==7.0.0
+
+# Phase 6 — semantic search
+faiss-cpu==1.15.0

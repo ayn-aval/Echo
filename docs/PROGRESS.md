@@ -2,7 +2,7 @@
 
 ## Current status
 
-**Phases 0, 1, 2, 3, 4 and 5 complete.**
+**Phases 0, 1, 2, 3, 4, 5 and 6 complete.**
 
 | phase | state |
 |---|---|
@@ -12,7 +12,8 @@
 | 3 — Reproduce SBERT | **done. 72.17 vs paper's 74.21; ablation run** |
 | 4 — Domain adaptation | **done. Precision@10 45.77 -> 61.15, STS 72.17 -> 74.54** |
 | 5 — Theme discovery | **done. 110 themes; audit 82.4% vs GloVe's 44.1%** |
-| 6 — Semantic search | not started |
+| 6 — Semantic search | **done. 75.77 P@10 two-stage — first system to beat TF-IDF** |
+| 7 — Streamlit dashboard | not started |
 
 **Immediate next step:** Phase 6 (FAISS semantic search), or Phase 4b (the
 pair-source ablation, set up but not run — `notebooks/phase4b_ablation_kaggle.ipynb`).
@@ -319,6 +320,87 @@ silhouette. Tuning purely on scores would have selected `mcs=120, ms=None`,
 which puts 98.6% of the corpus in one "theme" and scores a merely mediocre
 -0.03 silhouette rather than an obviously broken one.
 
+## Phase 6 — Semantic search
+
+Full write-up in `results/phase6_notes.md`.
+
+**The two-stage searcher reaches 75.77 Precision@10 — the first system in this
+project to beat TF-IDF's 65.00, which had won since Phase 2. Single-stage search
+answers in 8.56 ms p50.**
+
+| system | Recall@10 | Precision@10 | MRR |
+|---|---|---|---|
+| tfidf | 30.69 | 65.00 | 85.71 |
+| sbert-domain, single-stage | 24.08 | 61.15 | 83.81 |
+| faiss-ivf nprobe=10 | 20.85 | 53.08 | 83.80 |
+| **faiss top-50 + cross-encoder** | **30.64** | **75.77** | **86.54** |
+
+### The number this phase almost reported was WRONG
+
+The first benchmark said reranking *dropped* Precision@10 to **40.77**. It was an
+artifact. A reranker reorders 50 candidates, so it promotes reviews from ranks
+11-50 that no bi-encoder ever put in a top-10 — never pooled, therefore scored as
+irrelevant by default. Coverage was **47.3%** against faiss-exact's 96.2%.
+
+Fixed with `eval/build_pool.py --augment --with-rerank` plus 127 new judgements;
+coverage is now 96.2% for both. **The Phase 3 lesson applies to a new *ranking*,
+not just a new *model*.**
+
+**Precision@10 was unchanged for all five previously measured systems across the
+pool revision** (65.00 / 58.85 / 43.46 / 45.77 / 61.15) while Recall fell for
+every one of them — 91 more relevant reviews entered the denominator. Lesson 2
+reproducing exactly. The alignment check in `eval/benchmark_search.py` therefore
+verifies Precision and MRR and **deliberately not Recall**; an earlier version
+hardcoded the old Recall value and reported a false MISMATCH.
+
+### Latency (p50/p95 ms, 200 queries, warm-up discarded)
+
+| stage | p50 | p95 |
+|---|---|---|
+| query encode | 6.89 | 17.58 |
+| faiss exact | **1.52** | 2.48 |
+| faiss IVF | 0.41 | 1.22 |
+| cross-encode 50 | 61.20 | 185.67 |
+| total 1-stage | **8.56** | 19.20 |
+| total 2-stage | **71.26** | 200.51 |
+
+Reranking costs 8.3x latency for +14.62 Precision@10 — worth it, and still
+interactive. **FAISS is not the bottleneck**: exhaustive search over 45,864
+vectors takes 1.52 ms while encoding the query takes 6.89 ms.
+
+**FAISS's approximate index is not needed at this scale.** IVF is 3.7x faster and
+costs 8.07 Precision@10. Saving 1.1 ms out of 8.56 ms by giving up accuracy is a
+bad trade; ANN earns its place at millions of vectors, not 45,864. Do not imply
+it was required here.
+
+### The interview answer, with a measured number
+
+50 candidates cost 61.20 ms, so cross-encoding all 45,864 would cost roughly
+**56 seconds per query** against 8.56 ms for the bi-encoder — about 6,500x. A
+bi-encoder embeds query and review separately so review vectors precompute once;
+a cross-encoder scores a *pair*, so it precomputes nothing. That is the SBERT
+paper's opening argument reproduced on this corpus.
+
+### macOS bug — do not lose this
+
+**FAISS and scikit-learn each link their own OpenMP runtime. Importing sklearn
+BEFORE faiss segfaults the process — exit 139, no traceback, no output.**
+Verified: faiss-first works; `OMP_NUM_THREADS=1` works but forces faiss
+single-threaded (rejected — it would understate the latency being measured);
+`KMP_DUPLICATE_LIB_OK=TRUE` does **not** help. `eval/benchmark_search.py` and
+`eval/build_pool.py` import faiss at the top of their third-party block.
+
+### Open limitations
+
+- The cross-encoder is pretrained on English web search, not trained here. It
+  inherits the Hinglish weakness: *"khana thanda tha"* (food was cold) returns
+  *"kahana bht acha tha"* (food was very good) at rank 1.
+- A reranker only reorders what stage one found, which is why recall improves far
+  less than precision.
+- 20 pooled candidates on one query remain unjudged; `faiss-ivf` sits at 88.8%
+  coverage, so its 53.08 is a mild underestimate.
+- Latency is single-query on an idle Mac — no concurrency or cold start.
+
 ## Decisions made
 
 | decision | why |
@@ -336,6 +418,8 @@ which puts 98.6% of the corpus in one "theme" and scores a merely mediocre
 | Clustering at `min_cluster_size=60, min_samples=None` | user's call from the sweep, chosen by reading real cluster contents; best silhouette and coherent themes, at the cost of the highest noise |
 | Hinglish language-cluster reported, not patched | user's call; splitting the corpus by `lang` would recover the themes but makes the three-way comparison non-comparable |
 | Standalone `hdbscan`, not sklearn's | it compiled cleanly on Apple Silicon, so no substitution from the stated stack was needed |
+| Exact FAISS index in production, IVF measured only | at 45,864 vectors ANN saves 1.1 ms and costs 8.07 Precision@10 |
+| Two-stage rerank kept despite 8.3x latency | +14.62 Precision@10 and still 71 ms p50, comfortably interactive |
 
 ## Known rough edges
 
@@ -368,24 +452,20 @@ which puts 98.6% of the corpus in one "theme" and scores a merely mediocre
 
 ## Exact next step
 
-**Phase 5 is complete.** Options, the user's call:
+**Phase 6 is complete.** The obvious next step is **Phase 7 — the Streamlit
+dashboard**, built page by page: Overview, Themes, Trends, Search, Model
+comparison. Everything it needs now exists: themes and assignments in Postgres,
+a FAISS index, and `src.search.query.search()` / `src.search.rerank.search_reranked()`
+ready to wrap in `@st.cache_resource`.
 
-**A — Phase 6, semantic search.** FAISS index over `data/vectors/sbert-domain.npy`,
-a query function, then the two-stage cross-encoder rerank with measured accuracy
-gain against latency cost. p50/p95 latency recorded.
-
-**B — Phase 4b, the pair-source ablation.** `notebooks/phase4b_ablation_kaggle.ipynb`,
-~20 minutes on Kaggle. STS comes free; retrieval for the variants needs one more
-re-pool and labelling round.
-
-**C — More audit judgements.** ~200 more would settle whether `sbert-domain`
-genuinely beats `bert-mean` on theme quality, which the current 102 cannot.
-
-Also outstanding:
-- The honest README paragraph — material in `results/phase3_notes.md`,
-  `results/phase4_notes.md`, `results/phase5_notes.md`.
-- 14 unjudged pooled candidates on *"my Instamart order had a problem"*.
-- 24 of the 50 evaluation queries were never labelled.
+Still outstanding:
+- **Phase 4b**, the pair-source ablation — `notebooks/phase4b_ablation_kaggle.ipynb`,
+  ~20 min on Kaggle, never run.
+- **~200 more theme-audit judgements** would settle whether `sbert-domain` beats
+  `bert-mean` on theme quality (currently p=0.56, not significant).
+- The honest README paragraph — material in `results/phase{3,4,5,6}_notes.md`.
+- 20 unjudged pooled candidates on *"my Instamart order had a problem"*; 24 of
+  the 50 evaluation queries never labelled.
 - `CLAUDE.md` and `PROJECT_PLAN.md` still say Colab for training; actual runs use
   Kaggle. Ask before editing — they are portfolio documents.
 
@@ -408,4 +488,9 @@ python -m src.clustering.tune --model sbert-domain      # HDBSCAN parameter swee
 python -m src.clustering.name_themes --model sbert-domain
 python -m eval.clustering_comparison --persist          # three-way theme comparison
 streamlit run app/audit.py      # blind hand-audit of theme assignments
+python -m src.search.index                       # Phase 6: build FAISS indexes
+python -m src.search.query "app keeps crashing"  # semantic search
+python -m src.search.rerank "refund not received"   # two-stage search
+python -m eval.build_pool --augment --with-rerank    # pool the reranker BEFORE scoring it
+python -m eval.benchmark_search  # accuracy + p50/p95 latency
 ```

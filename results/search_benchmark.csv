@@ -1,0 +1,10 @@
+config,queries_scored,recall@10,max_possible_recall@10,precision@10,mrr,measure,stage,p50_ms,p95_ms,n
+faiss-exact,26.0,24.08,49.78,61.15,83.8,accuracy,,,,
+faiss-ivf-nprobe10,26.0,20.85,49.78,53.08,83.8,accuracy,,,,
+faiss-top50+cross-encoder,26.0,30.64,49.78,75.77,86.54,accuracy,,,,
+,,,,,,latency,encode,6.57,15.69,190.0
+,,,,,,latency,faiss_exact,1.46,1.98,190.0
+,,,,,,latency,faiss_ivf,0.18,0.52,190.0
+,,,,,,latency,cross_encode_50,58.65,177.15,190.0
+,,,,,,latency,total_1stage,8.11,17.51,190.0
+,,,,,,latency,total_2stage,68.63,192.57,190.0

@@ -27,6 +27,11 @@ BERT. Run with --augment after training anything new, then label the additions.
 import logging
 from pathlib import Path
 
+# faiss MUST load before scikit-learn: both link their own OpenMP runtime and on
+# macOS the wrong order segfaults the process (exit 139, no traceback) at the
+# first faiss call. Only matters for --with-rerank, but the import is
+# unconditional so the order cannot depend on a flag.
+import faiss  # noqa: F401  (imported for load order, not used directly here)
 import numpy as np
 import pandas as pd
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -81,6 +86,10 @@ def main() -> None:
     ap.add_argument("--augment", action="store_true",
                     help="add a newly trained model's candidates to the existing "
                          "pool instead of rebuilding it from scratch")
+    ap.add_argument("--with-rerank", action="store_true",
+                    help="also pool the Phase 6 two-stage searcher (FAISS top-50 "
+                         "reranked by a cross-encoder). Required before its "
+                         "accuracy can be compared to anything.")
     args = ap.parse_args()
     docs = load_corpus()
     with connection() as conn:
@@ -118,6 +127,26 @@ def main() -> None:
         s_encode = sbert.make_encoder(path)
         d_sbert = cached(cache, lambda e=s_encode: e(texts))
         ranks[name] = top_k(s_encode(qtexts), d_sbert, TOP_PER_SYSTEM)
+
+    # The two-stage searcher is a genuinely different retrieval system: it
+    # promotes reviews from ranks 11-50 that no bi-encoder ever put in its top
+    # 10. Measured before pooling, 47.3% of its top-10 had never been judged
+    # against FAISS's 96.2%, so its accuracy looked 20 points worse than it may
+    # be. Same failure as the Phase 3 lesson, different system.
+    if args.with_rerank:
+        print("rerank (faiss top-50 + cross-encoder)")
+        from src.search.query import embed_query, get_searcher
+        from src.search.rerank import CANDIDATES, MODEL, get_cross_encoder
+        index, corpus, encode, _ = get_searcher("sbert-domain", approximate=False)
+        cross = get_cross_encoder(MODEL)
+        picked = []
+        for text in qtexts:
+            cand = index.search(embed_query(text, encode), CANDIDATES)[1][0]
+            scores = np.asarray(cross.predict(
+                [(text, str(corpus.content.iloc[i])) for i in cand],
+                show_progress_bar=False))
+            picked.append(cand[np.argsort(-scores)][:TOP_PER_SYSTEM])
+        ranks["rerank"] = np.vstack(picked)
 
     for system, idx in ranks.items():
         for qi, row in enumerate(idx):
