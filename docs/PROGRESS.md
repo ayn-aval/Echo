@@ -2,7 +2,7 @@
 
 ## Current status
 
-**Phases 0, 1, 2, 3 and 4 complete.**
+**Phases 0, 1, 2, 3, 4 and 5 complete.**
 
 | phase | state |
 |---|---|
@@ -11,12 +11,13 @@
 | 2 — Baselines + eval harness | done — STS and review-retrieval baselines measured |
 | 3 — Reproduce SBERT | **done. 72.17 vs paper's 74.21; ablation run** |
 | 4 — Domain adaptation | **done. Precision@10 45.77 -> 61.15, STS 72.17 -> 74.54** |
-| 5 — Theme discovery | not started |
+| 5 — Theme discovery | **done. 110 themes; audit 82.4% vs GloVe's 44.1%** |
+| 6 — Semantic search | not started |
 
-**Immediate next step:** the user's call between Phase 5 (theme discovery) and
-Phase 4b (the pair-source ablation, set up but not run —
-`notebooks/phase4b_ablation_kaggle.ipynb`). The README write-up is still
-undrafted; material is in `results/phase3_notes.md` and `results/phase4_notes.md`.
+**Immediate next step:** Phase 6 (FAISS semantic search), or Phase 4b (the
+pair-source ablation, set up but not run — `notebooks/phase4b_ablation_kaggle.ipynb`).
+The README write-up is still undrafted; material is in `results/phase3_notes.md`,
+`results/phase4_notes.md` and `results/phase5_notes.md`.
 
 ---
 
@@ -252,6 +253,72 @@ stage they never ran. Different recipe, not a better result on the same one.
    The remapping happened, but had it not, those layers would have loaded
    randomly initialised and still produced plausible-looking vectors.
 
+## Phase 5 — Theme discovery
+
+Full write-up in `results/phase5_notes.md`.
+
+UMAP + HDBSCAN over 45,864 distinct texts, run identically on three embeddings.
+**110 themes from `sbert-domain`; 44,332 of 64,280 review rows assigned.**
+
+| model | clusters | noise % | biggest cluster | silhouette | audit |
+|---|---|---|---|---|---|
+| glove-avg | 47 | **15.04** | **58.64%** | -0.0330 | 44.12% |
+| bert-mean | 42 | 25.45 | 41.15% | 0.0502 | 73.53% |
+| **sbert-domain** | 110 | 40.30 | **5.88%** | 0.1138 | **82.35%** |
+
+### Noise percentage alone ranks the WORST model first
+
+GloVe posts the best noise figure by refusing to separate anything: 58.6% of the
+corpus sits in one cluster mixing "varry 👍👍 good swiggy" with refund complaints.
+`largest_pct` was added to the comparison output so this cannot be read past.
+**Never quote noise % without it.**
+
+**Silhouette is a within-model diagnostic, not a comparison** — each is computed
+inside that model's own space, and GloVe is 300d against the others' 768d.
+
+### The blind audit settles it, but only partly
+
+102 judgements, 34/model, model identity hidden (verified via `AppTest` that no
+model name reaches the page), fixed-seed shuffle, deterministic sample.
+
+| comparison | p (Fisher) | verdict |
+|---|---|---|
+| sbert-domain vs glove-avg | 0.0022 | significant |
+| bert-mean vs glove-avg | 0.0258 | significant |
+| **sbert-domain vs bert-mean** | **0.5597** | **NOT significant** |
+
+**Do not claim the trained model beats plain BERT on the audit.** The 8.8-point
+gap is inside the noise at n=34. The case over `bert-mean` rests on structure,
+which is not a sampling question: 110 themes vs 42, and 5.88% vs 41.15% of the
+corpus in the largest theme. A theme holding 41% of reviews is not actionable.
+
+**Where GloVe actually fails:** 20 of its 34 audit rows came from its mega-cluster,
+scoring 15.0% there against 85.7% outside it. Its small clusters are fine; it
+simply cannot decide where the biggest group ends.
+
+### Open limitations
+
+- **The largest theme is a language, not a topic.** Theme 39 (2,855 reviews,
+  `mere / karne / karte`) groups Hinglish reviews regardless of complaint. The
+  Phase 4 finding that Hinglish was never bridged, now surfacing in the product.
+  Reported rather than patched, by the user's decision.
+- **Seven of the top fifteen themes are generic praise** (~13,600 reviews) — the
+  predicted cost of the Phase 1 2+ word threshold.
+- **40.3% noise**, the highest of the three. Deliberate: settings that lowered it
+  did so by merging everything (`mcs=120, ms=None` gave 0.53% noise and one
+  cluster of 45,222).
+- One judge, one sample, no inter-annotator agreement.
+
+### Lesson worth carrying
+
+**A metric that rewards doing nothing will rank "nothing" first.** Noise
+percentage looked like a coverage measure and was really a laziness measure.
+The fix was not a better metric but a second one alongside it — `largest_pct` —
+plus reading actual cluster contents during tuning rather than chasing
+silhouette. Tuning purely on scores would have selected `mcs=120, ms=None`,
+which puts 98.6% of the corpus in one "theme" and scores a merely mediocre
+-0.03 silhouette rather than an obviously broken one.
+
 ## Decisions made
 
 | decision | why |
@@ -266,6 +333,9 @@ stage they never ran. Different recipe, not a better result on the same one.
 | Training code in `src/`, notebook as thin driver | notebooks are JSON and undiffable; the loop is the portfolio artifact |
 | GPU runs on Kaggle, not Colab | user's call; `CLAUDE.md` and `PROJECT_PLAN.md` still say Colab. Kaggle mounts data read-only at `/kaggle/input/`, writes to `/kaggle/working/`, and has no Drive |
 | Phase 4 pairs: mined + SimCSE | user's call after seeing real example pairs from all four candidate strategies; the two reply-based strategies in the plan were measured and rejected |
+| Clustering at `min_cluster_size=60, min_samples=None` | user's call from the sweep, chosen by reading real cluster contents; best silhouette and coherent themes, at the cost of the highest noise |
+| Hinglish language-cluster reported, not patched | user's call; splitting the corpus by `lang` would recover the themes but makes the three-way comparison non-comparable |
+| Standalone `hdbscan`, not sklearn's | it compiled cleanly on Apple Silicon, so no substitution from the stated stack was needed |
 
 ## Known rough edges
 
@@ -298,28 +368,26 @@ stage they never ran. Different recipe, not a better result on the same one.
 
 ## Exact next step
 
-**Phase 4 is complete.** Two options, the user's call:
+**Phase 5 is complete.** Options, the user's call:
 
-**A — Phase 4b, the pair-source ablation.** Set up but not run:
-`notebooks/phase4b_ablation_kaggle.ipynb`, two runs on the existing
-`echo-phase4` Kaggle dataset, ~20 minutes. It answers the open question of
-whether the mined pairs or SimCSE produced the gain, and whether the retrieval
-improvement is partly the model learning to imitate TF-IDF. STS comes free;
-**retrieval for the variants needs one more re-pool and labelling round.**
+**A — Phase 6, semantic search.** FAISS index over `data/vectors/sbert-domain.npy`,
+a query function, then the two-stage cross-encoder rerank with measured accuracy
+gain against latency cost. p50/p95 latency recorded.
 
-**B — Phase 5, theme discovery.** Encode all reviews with `sbert-domain`, then
-UMAP + HDBSCAN, and cluster three times (GloVe / plain BERT / sbert-domain) for
-the comparison table. Note from Phase 1: expect large generic-praise clusters as
-a direct consequence of the 2+ word threshold, and report them rather than hide
-them.
+**B — Phase 4b, the pair-source ablation.** `notebooks/phase4b_ablation_kaggle.ipynb`,
+~20 minutes on Kaggle. STS comes free; retrieval for the variants needs one more
+re-pool and labelling round.
+
+**C — More audit judgements.** ~200 more would settle whether `sbert-domain`
+genuinely beats `bert-mean` on theme quality, which the current 102 cannot.
 
 Also outstanding:
-- The honest README paragraph, material in `results/phase3_notes.md` and
-  `results/phase4_notes.md`.
+- The honest README paragraph — material in `results/phase3_notes.md`,
+  `results/phase4_notes.md`, `results/phase5_notes.md`.
 - 14 unjudged pooled candidates on *"my Instamart order had a problem"*.
 - 24 of the 50 evaluation queries were never labelled.
-- `CLAUDE.md` and `PROJECT_PLAN.md` still say Colab for training; actual runs
-  use Kaggle. Ask before editing — they are portfolio documents.
+- `CLAUDE.md` and `PROJECT_PLAN.md` still say Colab for training; actual runs use
+  Kaggle. Ask before editing — they are portfolio documents.
 
 ## Commands
 
@@ -335,4 +403,9 @@ python -m eval.reply_signal     # Phase 4: are replies category- or rating-templ
 python -m eval.run_sts_trained  # STS for every trained encoder on disk
 python -m src.training.mine_pairs        # rebuild the Phase 4 training pairs
 python -m src.training.train_domain      # Phase 4 fine-tuning (also runs on Kaggle)
+python -m src.embeddings.encode_corpus   # Phase 5: vectors + review-id mapping
+python -m src.clustering.tune --model sbert-domain      # HDBSCAN parameter sweep
+python -m src.clustering.name_themes --model sbert-domain
+python -m eval.clustering_comparison --persist          # three-way theme comparison
+streamlit run app/audit.py      # blind hand-audit of theme assignments
 ```

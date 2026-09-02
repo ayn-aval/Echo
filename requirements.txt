@@ -18,3 +18,8 @@ streamlit==1.62.0
 # Phase 4 — domain adaptation (sentence-transformers allowed from here on)
 sentence-transformers==6.0.1
 accelerate==1.14.0
+
+# Phase 5 — theme discovery
+umap-learn==0.5.12
+hdbscan==0.8.44
+plotly==7.0.0

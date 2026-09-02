@@ -68,3 +68,54 @@ CREATE TABLE IF NOT EXISTS eval_judgements (
     judged_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (query_id, app, review_id)
 );
+
+-- Phase 5: discovered themes.
+--
+-- Both tables carry a `model` column so the three clustering runs (glove-avg,
+-- bert-mean, sbert-domain) coexist and can be compared directly in SQL. Phase 7
+-- filters to the winning model; eval/clustering_comparison.py reads all three.
+--
+-- theme_id -1 means HDBSCAN judged the review to belong to no theme. Those rows
+-- ARE stored, so "what share of reviews got a theme" is a query rather than a
+-- number someone has to remember. There is deliberately no foreign key from
+-- review_themes.theme_id to themes.theme_id, because -1 has no themes row.
+CREATE TABLE IF NOT EXISTS themes (
+    model             TEXT        NOT NULL,   -- which embedding produced it
+    theme_id          INTEGER     NOT NULL,   -- HDBSCAN's cluster id
+    label             TEXT        NOT NULL,   -- readable name from c-TF-IDF terms
+    top_terms         TEXT        NOT NULL,   -- comma-separated, most distinctive first
+    n_rows            INTEGER     NOT NULL,   -- reviews, counting duplicates
+    n_texts           INTEGER     NOT NULL,   -- distinct texts
+    avg_rating        NUMERIC(3,2),
+    example_review_id TEXT,                   -- nearest the cluster centroid
+    params            TEXT,                   -- the HDBSCAN settings used
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (model, theme_id)
+);
+
+CREATE TABLE IF NOT EXISTS review_themes (
+    app       TEXT    NOT NULL,
+    review_id TEXT    NOT NULL,
+    model     TEXT    NOT NULL,
+    theme_id  INTEGER NOT NULL,               -- -1 = noise, no themes row
+    strength  REAL,                           -- HDBSCAN membership probability
+    PRIMARY KEY (app, review_id, model),
+    FOREIGN KEY (app, review_id) REFERENCES reviews(app, review_id)
+);
+
+CREATE INDEX IF NOT EXISTS ix_review_themes_theme
+    ON review_themes (model, theme_id);
+
+-- Phase 5: the blind hand-audit of theme assignments.
+-- Which model produced an assignment is never shown while judging, so the
+-- verdicts are comparable across models rather than anchored by expectation.
+CREATE TABLE IF NOT EXISTS theme_audit (
+    audit_id  SERIAL      PRIMARY KEY,
+    app       TEXT        NOT NULL,
+    review_id TEXT        NOT NULL,
+    model     TEXT        NOT NULL,
+    theme_id  INTEGER     NOT NULL,
+    belongs   BOOLEAN     NOT NULL,
+    judged_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (app, review_id, model)
+);

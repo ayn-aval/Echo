@@ -1,0 +1,4 @@
+model,dim,n_clusters,noise_pct,largest,largest_pct,median_size,silhouette,audit_accuracy,audit_n
+glove-avg,300,47,15.04,26894,58.64,133,-0.033,44.12,34
+bert-mean,768,42,25.45,18873,41.15,170,0.0502,73.53,34
+sbert-domain,768,110,40.3,2697,5.88,154,0.1138,82.35,34
