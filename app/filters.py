@@ -10,6 +10,7 @@ import json
 from dataclasses import dataclass
 
 import pandas as pd
+import psycopg2
 import streamlit as st
 
 from shared import sql
@@ -57,17 +58,33 @@ def _views() -> pd.DataFrame:
     return sql("SELECT name, payload FROM saved_views ORDER BY created_at DESC")
 
 
-def _save(name: str, f: Filters) -> None:
-    with connection() as conn, conn.cursor() as cur:
-        cur.execute("""INSERT INTO saved_views (name, payload) VALUES (%s, %s)
-                       ON CONFLICT (name) DO UPDATE
-                       SET payload = EXCLUDED.payload, created_at = now()""",
-                    (name, json.dumps({"period": f.period, "areas": list(f.areas)})))
+# The public deployment connects as a read-only role, so these writes are
+# refused there by design. A visitor should see a plain sentence, not a traceback.
+READ_ONLY_NOTE = "Saving views is turned off on the public demo."
 
 
-def _delete(name: str) -> None:
-    with connection() as conn, conn.cursor() as cur:
-        cur.execute("DELETE FROM saved_views WHERE name = %s", (name,))
+def _save(name: str, f: Filters) -> bool:
+    try:
+        with connection() as conn, conn.cursor() as cur:
+            cur.execute("""INSERT INTO saved_views (name, payload) VALUES (%s, %s)
+                           ON CONFLICT (name) DO UPDATE
+                           SET payload = EXCLUDED.payload, created_at = now()""",
+                        (name, json.dumps({"period": f.period,
+                                           "areas": list(f.areas)})))
+        return True
+    except psycopg2.errors.InsufficientPrivilege:
+        st.info(READ_ONLY_NOTE)
+        return False
+
+
+def _delete(name: str) -> bool:
+    try:
+        with connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM saved_views WHERE name = %s", (name,))
+        return True
+    except psycopg2.errors.InsufficientPrivilege:
+        st.info(READ_ONLY_NOTE)
+        return False
 
 
 def bar() -> Filters:
@@ -106,17 +123,17 @@ def bar() -> Filters:
                                f"{', '.join(payload['areas']) or 'all areas'}")
                 with c2:
                     if st.button("Remove", key=f"del{row.name}"):
-                        _delete(row.name)
-                        st.cache_data.clear()
-                        st.rerun()
+                        if _delete(row.name):
+                            st.cache_data.clear()
+                            st.rerun()
             st.divider()
             name = st.text_input("Name this view",
                                  placeholder="e.g. Delivery, last 4 weeks")
             if st.button("Save current filters", type="primary",
                          width="stretch", disabled=not name):
-                _save(name.strip(), current)
-                st.cache_data.clear()
-                st.rerun()
+                if _save(name.strip(), current):
+                    st.cache_data.clear()
+                    st.rerun()
 
         st.markdown(f"<div class='sidenote'>Swiggy · Google Play<br>"
                     f"Showing {current.label}</div>", unsafe_allow_html=True)

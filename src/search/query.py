@@ -33,14 +33,30 @@ CORPUS = Path("data/vectors/corpus.parquet")
 @functools.lru_cache(maxsize=4)
 def get_searcher(model: str = "sbert-domain", approximate: bool = False):
     """(index, corpus, encode) — built once per process, then reused."""
-    meta_path = INDEX / f"{model}.json"
-    if not meta_path.exists():
-        raise SystemExit(f"{meta_path} missing — run `python -m src.search.index`")
-    meta = json.loads(meta_path.read_text())
+    from src.utils import assets
 
     suffix = ".ivf.faiss" if approximate else ".faiss"
-    index = faiss.read_index(str(INDEX / f"{model}{suffix}"))
-    corpus = pd.read_parquet(CORPUS)
+    index_path = INDEX / f"{model}{suffix}"
+    meta_path = INDEX / f"{model}.json"
+
+    if index_path.exists() and meta_path.exists():
+        index = faiss.read_index(str(index_path))
+        meta = json.loads(meta_path.read_text())
+    else:
+        # No prebuilt index on disk, which is the deployed case. Building an
+        # IndexFlatIP over 45,864 vectors takes well under a second, so shipping
+        # the 134 MB file to avoid it would be a bad trade — and it could not be
+        # shipped anyway, being over GitHub's 100 MB per-file limit.
+        from src.search.index import build_exact, build_ivf
+        vectors = assets.vectors(model)
+        index = build_ivf(vectors) if approximate else build_exact(vectors)
+        meta = {"model": model, "n_vectors": int(index.ntotal),
+                "dim": int(vectors.shape[1]),
+                "metric": "inner_product_on_unit_vectors_equals_cosine",
+                "source": "built in memory from "
+                          + ("local vectors" if assets.is_local(model) else "the Hub")}
+
+    corpus = pd.read_parquet(assets.corpus_source())
 
     # A mismatch here means the index was built from different vectors than the
     # mapping describes, which would return confidently wrong reviews.
@@ -49,9 +65,10 @@ def get_searcher(model: str = "sbert-domain", approximate: bool = False):
                          f"has {len(corpus):,} rows — rebuild the index")
 
     from src.embeddings import sbert
-    path, _ = sbert.TRAINED[model] if model in sbert.TRAINED else (None, None)
-    if path is None:
+    if model not in sbert.TRAINED:
         raise SystemExit(f"no trained encoder registered for {model}")
+    path, _ = sbert.TRAINED[model]
+    # make_encoder falls back to the Hub when the local directory is absent.
     encode = sbert.make_encoder(path, quiet=True)
     return index, corpus, encode, meta
 

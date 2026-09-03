@@ -30,22 +30,44 @@ TRAINED = {
 }
 
 
+# Models that also exist on the Hugging Face Hub, so a machine without the local
+# weights can still run them. Only sbert-domain is published — it is the one the
+# dashboard uses; sbert-distilroberta-300k is a training artifact kept for the
+# Phase 3 comparison and is not needed by the deployed app.
+HUB = {"sbert-domain": "aynaval2003/echo-sbert-domain"}
+
+
 def available():
-    """The subset of TRAINED whose encoder is actually on disk."""
-    return {n: (Path(p), c) for n, (p, c) in TRAINED.items() if Path(p).exists()}
+    """Models this machine can actually run: local weights, or a Hub fallback."""
+    return {n: (Path(p), c) for n, (p, c) in TRAINED.items()
+            if Path(p).exists() or n in HUB}
 
 
 def make_encoder(path, batch_size: int = 64, max_length: int = 128,
                  quiet: bool = False):
+    """Build an encoder from a local directory, or from the Hub if it is absent.
+
+    from_pretrained accepts a repo id wherever it accepts a path, so the only real
+    work here is finding pooling.json — which is not part of the transformers
+    format and has to be fetched separately. Getting it wrong is silent and
+    expensive: this model was trained with mean pooling, and CLS pooling scores
+    5.1 points lower in the Phase 3b ablation while still returning plausible
+    vectors.
+    """
     path = Path(path)
-    pooling = "mean"
     meta = path / "pooling.json"
     if meta.exists():
+        source = str(path)
         pooling = json.loads(meta.read_text())["pooling"]
+    else:
+        from src.utils.assets import encoder_source
+        from huggingface_hub import hf_hub_download
+        source = encoder_source(path)
+        pooling = json.loads(Path(hf_hub_download(source, "pooling.json")).read_text())["pooling"]
 
     device = get_device()
-    tokenizer = AutoTokenizer.from_pretrained(path)
-    model = AutoModel.from_pretrained(path).to(device).eval()
+    tokenizer = AutoTokenizer.from_pretrained(source)
+    model = AutoModel.from_pretrained(source).to(device).eval()
 
     @torch.no_grad()
     def encode(sentences):

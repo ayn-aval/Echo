@@ -320,8 +320,8 @@ runs used a Kaggle T4.
 ```bash
 git clone git@github.com:ayn-aval/Echo.git && cd Echo
 python3.11 -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env        # then fill in your Postgres credentials
+pip install -r requirements-dev.txt     # runtime + training, scraping, evaluation
+cp .env.example .env                    # then fill in your Postgres credentials
 
 python -m src.db.init_db    # create every table
 ```
@@ -348,6 +348,21 @@ Everything else takes seconds to low minutes.
 
 Training (GPU, not needed to run the app) is in [`notebooks/`](notebooks/):
 `phase3_train_sbert.ipynb` then `phase4_domain_adapt_kaggle.ipynb`.
+
+**Two requirements files.** `requirements.txt` is what the dashboard needs to
+*run* — 13 packages. `requirements-dev.txt` adds the nine that only training,
+scraping, clustering and evaluation use (`umap-learn`, `hdbscan`, `datasets`,
+`matplotlib` and so on). The split exists because the deployed server installs
+the plain file, and there is no reason to build UMAP on a machine that only
+serves a dashboard.
+
+**The app runs without any local model files.** When `models/` and `data/` are
+absent it pulls the encoder and vectors from the Hugging Face Hub
+([model](https://huggingface.co/aynaval2003/echo-sbert-domain),
+[vectors](https://huggingface.co/datasets/aynaval2003/echo-review-vectors)) and
+builds the FAISS index in memory — local files win whenever they are present, so
+one code path serves both. Point `NEON_POSTGRES_URL` at a hosted Postgres and it
+needs nothing on disk at all.
 
 ---
 

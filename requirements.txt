@@ -1,36 +1,25 @@
-# Every version is pinned to what this project was actually built and measured
-# with, so the numbers in README.md are reproducible. Python 3.11.
+# What the dashboard needs to RUN — local or deployed.
+# Training, scraping, clustering and evaluation live in requirements-dev.txt.
 #
-# Phase 1 — data collection
-google-play-scraper==1.2.7
+# Every version is pinned to what this project was built and measured with, so
+# the numbers in README.md are reproducible. Python 3.11.
+
+# Ask pip for the CPU build of torch. Without this line, installing torch on
+# Linux drags in the CUDA runtime — about 2.5 GB of nvidia-* wheels for a GPU no
+# deployment target here has. The +cpu local version sorts above the plain one,
+# so pip prefers it; on macOS this index serves the same wheels as PyPI.
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+streamlit==1.62.0
+pandas==2.2.3
+numpy==2.4.6
+plotly==7.0.0
 psycopg2-binary==2.9.10
 python-dotenv==1.0.1
-pandas==2.2.3
-numpy==2.4.6          # imported directly, not just via pandas
 tqdm==4.67.1
-matplotlib==3.11.1
 
-# Phase 2 — baselines and evaluation harness
 torch==2.13.0
 transformers==5.16.1
-datasets==5.0.1
-scipy==1.17.1
-scikit-learn==1.9.0
-streamlit==1.62.0
-
-# Phase 4 — domain adaptation (sentence-transformers allowed from here on)
 sentence-transformers==6.0.1
-accelerate==1.14.0
-
-# Phase 5 — theme discovery
-umap-learn==0.5.12
-hdbscan==0.8.44
-plotly==7.0.0
-
-# Phase 6 — semantic search
+huggingface-hub==1.29.0
 faiss-cpu==1.15.0
-
-# Verification only, not needed to run the app: eval/shoot_app.py drives real
-# Chrome to photograph every dashboard screen, because no automated test can
-# tell that a screen looks wrong. Uses the installed Chrome, downloads nothing.
-playwright==1.62.0
