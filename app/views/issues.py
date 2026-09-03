@@ -118,21 +118,10 @@ st.dataframe(reviews, hide_index=True, width="stretch", height=360,
                  "review": "Review"})
 design.note(f"Showing {len(reviews)} of {row.n_rows:,} reviews in this topic.")
 
-with st.expander("How topics are found, and what they miss"):
-    st.markdown(f"""
-Every review is turned into a list of numbers that represents its meaning, then
-reviews with similar numbers are grouped together. Nobody wrote the topic list in
-advance — the {len(themes)} topics were discovered from the reviews themselves.
-
-**Two things worth knowing.**
-
-Around a third of reviews are not placed in any topic. That is deliberate: a
-review saying only "good app" is not about anything in particular, and forcing it
-into a topic would corrupt that topic.
-
-Several of the largest topics are simply praise — "good", "nice", "excellent".
-That is honest rather than useful: a fifth of all reviews carry no specific
-feedback at all. One large topic groups reviews written in Hindi and Hinglish
-together regardless of subject, because the model recognises the language but not
-what is being said in it. That is a real limitation of this system.
-""")
+with st.expander("About these topics"):
+    st.markdown(
+        "- Topics are found from the reviews themselves — nobody wrote the list "
+        "in advance.\n"
+        "- About a third of reviews are too vague to place in any topic.\n"
+        "- One topic groups Hindi and Hinglish reviews by language rather than "
+        "subject. That is a known limit."))

@@ -33,13 +33,10 @@ careful = st.toggle(
 
 if not query:
     st.markdown(
-        f"<div class='card' style='color:{design.INK_2};line-height:1.6;'>"
-        "<strong style='color:#0b0b0b;'>Why this is different from a keyword "
-        "search</strong><br>Searching for <em>the app keeps crashing</em> in a "
-        "normal search box finds only reviews containing those words. This finds "
-        "<em>closes by itself</em>, <em>shuts down when I open it</em> and "
-        "<em>payment keeps crashing</em> too, because it compares meaning rather "
-        "than spelling.</div>", unsafe_allow_html=True)
+        f"<div class='card' style='color:{design.INK_2};'>"
+        "Type what a customer might say. Reviews that mean the same thing come "
+        "back, even when they use completely different words.</div>",
+        unsafe_allow_html=True)
     st.stop()
 
 shared.get_search()
@@ -93,16 +90,8 @@ if careful:
     design.note(f"The careful search reordered {moved} of these {len(hits)} "
                 "results, promoting reviews the fast search had ranked lower.")
 
-with st.expander("How this works, and where it fails"):
-    st.markdown("""
-Every review has been converted into a list of numbers that captures its meaning.
-Your search is converted the same way, and the reviews with the closest numbers
-come back first. Because meaning is compared rather than spelling, reviews that
-share no words with your search can still be the best match.
-
-**Where it fails.** Search for `khana thanda tha` (Hindi for *the food was cold*)
-and a top result is often `khana bahut acha tha` — *the food was very good*, the
-opposite meaning. The system was trained mostly on English, so with Hindi and
-Hinglish it recognises that two reviews look similar without understanding that
-they say opposite things. Around 4% of reviews are affected.
-""")
+with st.expander("Where this struggles"):
+    st.markdown(
+        "Hindi and Hinglish reviews can return the opposite meaning — searching "
+        "for *food was cold* may return *food was very good*. About 4% of "
+        "reviews are affected."))

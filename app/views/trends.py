@@ -129,17 +129,9 @@ if chosen:
 else:
     st.info("Choose at least one topic to plot.")
 
-with st.expander("How to read this page"):
-    st.markdown("""
-**Why share and not counts.** If review volume doubles one month, every topic
-gains reviews. Share answers the question you actually care about — is this a
-bigger part of what people are unhappy about than it used to be?
-
-**Why some versions are missing.** The version filter lists only versions with at
-least 1,000 reviews. Most of the 285 versions in the data have a single review
-from someone running a very old build, and 10,925 reviews record no version at
-all.
-
-**Small topics are excluded.** A topic needs at least 30 reviews across both
-periods to appear, because a jump from 2 reviews to 6 is noise, not a trend.
-""")
+with st.expander("How to read this"):
+    st.markdown(
+        "- Ranked by **portion of reviews**, not raw counts — some weeks are "
+        "simply busier.\n"
+        "- Only app versions with 1,000+ reviews are listed.\n"
+        "- Topics under 30 reviews are hidden as too small to trust."))

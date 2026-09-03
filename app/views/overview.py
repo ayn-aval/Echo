@@ -77,19 +77,13 @@ fig.add_hline(y=3, line_width=1, line_color=design.AXIS)
 st.plotly_chart(design.style(fig, height=280, ylab="Average rating"),
                 width="stretch", config={"displayModeBar": False})
 
-design.note(f"Average rating over time, smoothed over 14 days. It has "
-            f"{direction} from {first:.2f} to {last:.2f} stars since January. "
-            f"The line marks 3 stars — the neutral middle.")
+design.note(f"Smoothed over 14 days. {direction.capitalize()} from {first:.2f} to {last:.2f} stars since January.")
 
 with st.expander("About this data"):
-    st.markdown(f"""
-Reviews were collected from the Google Play Store for the Swiggy Android app,
-covering **{s.first_day:%d %B %Y} to {s.last_day:%d %B %Y}** with no missing days.
-
-The figures on this page use **all {s.reviews:,} reviews**. The Themes and Trends
-pages use the **64,280 reviews with more than one word**, because a review that
-says only "good" cannot be grouped by what it is about. Both numbers are reported
-rather than one standing in for the other: dropping short reviews would raise the
-share of unhappy customers, so a rating chart built on that smaller set would
-overstate dissatisfaction.
-""")
+    st.markdown(
+        f"- **{s.reviews:,} reviews** from the Google Play Store, "
+        f"{s.first_day:%d %B %Y} to {s.last_day:%d %B %Y}, no missing days.\n"
+        f"- Ratings and volume use every review.\n"
+        f"- Topics use the **64,280** reviews longer than one word — a review "
+        f"saying only \"good\" is not about anything.")
+)
