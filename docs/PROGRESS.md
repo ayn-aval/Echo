@@ -13,14 +13,16 @@
 | 4 — Domain adaptation | **done. Precision@10 45.77 -> 61.15, STS 72.17 -> 74.54** |
 | 5 — Theme discovery | **done. 110 themes; audit 82.4% vs GloVe's 44.1%** |
 | 6 — Semantic search | **done. 75.77 P@10 two-stage — first system to beat TF-IDF** |
-| 7 — Streamlit dashboard | **done. 5 pages, `streamlit run app/main.py`** |
+| 7 — Streamlit dashboard | **done. 7 screens, redesigned; `streamlit run app/main.py`** |
 | 8 — Trends and alerts | **done. 16 alerts at z>=3; Power BI guide written** |
 | 9 — Write-up and polish | not started |
 
-**Immediate next step:** Phase 6 (FAISS semantic search), or Phase 4b (the
-pair-source ablation, set up but not run — `notebooks/phase4b_ablation_kaggle.ipynb`).
-The README write-up is still undrafted; material is in `results/phase3_notes.md`,
-`results/phase4_notes.md` and `results/phase5_notes.md`.
+**Immediate next step:** Phase 9 — the README write-up. Screenshots for it are
+already generated: `python -m eval.shoot_app` writes all seven screens to
+`results/screens/`. Material is in `results/phase{3,4,5,6}_notes.md`.
+
+Phase 4b (the pair-source ablation) is set up but never run —
+`notebooks/phase4b_ablation_kaggle.ipynb`, ~20 min on Kaggle.
 
 ---
 
@@ -536,6 +538,48 @@ area over a changing topic set, word clouds (they rank by raw frequency and
 return "order, app, food" — exactly what this project exists to look past), and
 week-on-week percentage change without a count floor.
 
+## Design pass — making it look and read like a product
+
+Four rounds of UI feedback had not landed. The turning point was screenshotting
+every screen with a real browser and looking at them, instead of trusting that
+they were fine because they returned HTTP 200. That surfaced three separate
+problems, only one of which was taste.
+
+**Two things were broken.** `app/views/home.py` contained its whole body twice,
+so the landing page rendered everything double — leftover damage from the same
+bad string surgery that broke four files the session before. And `.pill`, used on
+the Topics screen, was never defined in the stylesheet, so that badge rendered as
+raw unstyled text.
+
+**84 of the 110 topics had no name.** `themes.display_name` was NULL for all but
+26, so every screen fell back to raw c-TF-IDF word soup: `poor / customer /
+support`, `late / delivery / bad`, `gst / fee / charges`, `नह / कर / डर`. This was
+the real cause of "labels nobody can understand" — a data problem that no amount
+of CSS would have fixed. `src/clustering/theme_names.py` now names all 110, each
+written from that topic's terms plus a sample of its actual reviews, and each
+still guarded by a term that must remain in `top_terms` so a re-clustering cannot
+silently misname one. `--check` reports 110 of 110 applied, 0 refused.
+
+**Nothing on any screen was louder than anything else.** The plane `#f7f7f5` and
+the cards `#ffffff` sat 1.07:1 apart — invisible — and all seven screens shared
+one rhythm: bar, three identical tiles, heading, full-width chart. The plane is
+now `#eef1f6` (1.13:1) with real shadows, and each screen opens with `design.hero()`
+— one dark band carrying one sentence and one large number, so the reader lands
+on the finding rather than on three numbers of equal weight.
+
+Also done: the four non-actionable topics (two grouping by language, two holding
+angry reviews with no detail) are excluded from the business screens through a new
+`themes.actionable` column, which Power BI inherits, while still counting in every
+total and staying visible on *How it works*; nav labels became plain nouns
+(Ratings, Topics, Trends, Search); `.streamlit/config.toml` sets the accent to the
+brand blue, which Streamlit's own widgets take from there rather than from CSS;
+and *How it works* now uses one unit throughout, having previously shown `65%` in a
+chart and `6.5 in 10` in the tile directly below it for the same quantity.
+
+Verified: `eval/check_app.py` 7/7; `theme_names --check` 110/110; Delivery's
+figures cross-checked against a direct SQL count and unchanged (2,088 unhappy of
+3,091); every screen photographed and looked at.
+
 ## Decisions made
 
 | decision | why |
@@ -570,6 +614,20 @@ week-on-week percentage change without a count floor.
 - Ten pooled candidates on one query remain unjudged (~1%).
 
 ## Process notes for future sessions
+
+**A Playwright `full_page` screenshot of a Streamlit app captures only the first
+screen.** Streamlit scrolls an inner container rather than the document, so
+`full_page=True` silently crops everything below the fold and gives no warning.
+Use a tall viewport instead — `eval/shoot_app.py` uses 1600x2400. The first
+version of that script looked like it was working and had never once shown me the
+bottom half of any page.
+
+**Streamlit does not reload `app/design.py` on change.** It re-runs the entry
+script but keeps imported modules in `sys.modules`, so after editing a module the
+running server serves the old one and the page fails with a stale `AttributeError`
+that reads like a code bug. Restart the server after touching anything under
+`app/` that is not a view.
+
 
 - **`AppTest` does NOT report a SyntaxError.** It prints one to stderr and then
   returns an AppTest whose `.exception` is `None`, so a file that does not even
@@ -617,6 +675,8 @@ Still outstanding:
   Ask before editing — they are portfolio documents.
 - The user asked whether generic-praise topics should be hidden entirely from the
   dashboard, and whether to add business-impact estimates. Both need their input.
+  (The four *non-actionable* topics are now hidden via `themes.actionable`; the
+  generic-praise question is separate and still open.)
 
 ## Commands
 

@@ -28,12 +28,12 @@ NAV = {
     "Monitor": [
         st.Page("views/home.py", title="Today", url_path="today", default=True),
         st.Page("views/alerts.py", title="Alerts", url_path="alerts"),
-        st.Page("views/overview.py", title="Volume and ratings", url_path="volume"),
+        st.Page("views/overview.py", title="Ratings", url_path="volume"),
     ],
     "Understand": [
-        st.Page("views/issues.py", title="What customers raise", url_path="issues"),
-        st.Page("views/trends.py", title="What changed", url_path="changes"),
-        st.Page("views/search.py", title="Find reviews", url_path="find"),
+        st.Page("views/issues.py", title="Topics", url_path="issues"),
+        st.Page("views/trends.py", title="Trends", url_path="changes"),
+        st.Page("views/search.py", title="Search", url_path="find"),
     ],
     "About": [
         st.Page("views/accuracy.py", title="How it works", url_path="how"),

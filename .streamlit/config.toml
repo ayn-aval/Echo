@@ -1,0 +1,16 @@
+# Streamlit's own theme. app/design.py styles everything it can reach with CSS,
+# but widgets Streamlit renders itself — slider tracks, radio dots, checkboxes,
+# focus states — take their accent from here. Left at the default they came out
+# red, fighting the brand blue on every screen.
+[theme]
+primaryColor = "#2a78d6"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f6f8fb"
+textColor = "#101827"
+font = "sans serif"
+
+[server]
+headless = true
+
+[browser]
+gatherUsageStats = false

@@ -1,11 +1,15 @@
-"""Trends — what is getting worse, and when it started."""
+"""Trends — what is growing, what is fading, and when it turned.
+
+Ranked by each topic's share of the conversation rather than its raw count: more
+people review in some weeks than others, so a topic can gain reviews without
+becoming a bigger problem.
+"""
 
 import design
-import pandas as pd
 import plotly.graph_objects as go
 from shared import MODEL, sql, st
 
-design.appbar("Understand", "What changed")
+design.appbar("Understand", "Trends")
 
 F = st.session_state["filters"]
 
@@ -17,7 +21,7 @@ series = sql(f"""
       FROM review_themes rt
       JOIN reviews r ON r.app = rt.app AND r.review_id = rt.review_id
       JOIN themes t ON t.model = rt.model AND t.theme_id = rt.theme_id
-     WHERE rt.model = %s AND rt.theme_id >= 0 {F.area_clause('t')}
+     WHERE rt.model = %s AND rt.theme_id >= 0 AND t.actionable {F.area_clause('t')}
      GROUP BY 1, 2, 3, 4, 5""", (MODEL,))
 
 if series.empty:
@@ -31,8 +35,9 @@ versions = sql("""SELECT review_version AS v, count(*) AS n FROM reviews
 weeks = sorted(series.week.unique())
 c1, c2, c3 = st.columns([3, 2, 3], gap="medium")
 with c1:
-    start, end = st.select_slider("Period covered", options=weeks,
-                                  value=(weeks[0], weeks[-1]))
+    start, end = st.select_slider("Weeks covered", options=weeks,
+                                  value=(weeks[0], weeks[-1]),
+                                  format_func=lambda w: f"{w:%d %b %Y}")
 with c2:
     only_complaints = st.selectbox("Show", ["Complaints only", "All topics"])
 with c3:
@@ -45,13 +50,13 @@ if picked:
 if only_complaints == "Complaints only":
     view = view[view.avg_rating <= 2.5]
 if view.empty:
-    st.warning("No reviews match these filters. Widen the period or clear the "
-               "version filter.")
+    st.warning("Nothing matches. Widen the weeks or clear the version filter.")
     st.stop()
 
 inner = [w for w in weeks if start < w < end]
-split = st.select_slider("Dividing line", options=inner or weeks,
-                         value=(inner or weeks)[len(inner or weeks) // 2])
+split = st.select_slider("Compare before and after", options=inner or weeks,
+                         value=(inner or weeks)[len(inner or weeks) // 2],
+                         format_func=lambda w: f"{w:%d %b %Y}")
 
 before, after = view[view.week < split], view[view.week >= split]
 if before.empty or after.empty:
@@ -73,24 +78,21 @@ worse, better = m.nlargest(6, "change"), m.nsmallest(6, "change")
 
 top = worse.iloc[0]
 growth = ((top.reviews_after - top.reviews_before) / max(top.reviews_before, 1)) * 100
-design.tiles([
-    ("Fastest growing complaint", top.label,
-     f"{top.reviews_before:,.0f} to {top.reviews_after:,.0f} reviews, "
-     f"up {growth:.0f}%"),
-    ("Topics growing", f"{(m.change > 0).sum()}", "a bigger share than before"),
-    ("Topics shrinking", f"{(m.change < 0).sum()}", "a smaller share than before"),
-])
-
-st.markdown(f"## Before and after {split:%d %B %Y}")
-design.note("Ranked by how much of the conversation each topic takes up, not by "
-            "raw counts — more people review in some weeks than others, so a "
-            "topic can gain reviews without becoming a bigger problem.")
+design.hero(
+    eyebrow=f"Before and after {split.day} {split:%B %Y}",
+    headline=f"“{top.label}” is growing fastest",
+    value=f"{growth:+.0f}%",
+    unit="more reviews than before",
+    side=(f"Went from <b>{top.reviews_before:,.0f}</b> to "
+          f"<b>{top.reviews_after:,.0f}</b> reviews<br>"
+          f"<b>{(m.change > 0).sum()}</b> topics growing · "
+          f"<b>{(m.change < 0).sum()}</b> shrinking"))
 
 lc, rc = st.columns(2, gap="large")
 for col, data, title, colour in ((lc, worse, "Growing", design.NEGATIVE),
                                  (rc, better, "Fading", design.POSITIVE)):
     with col:
-        st.markdown(f"### {title}")
+        st.markdown(f"## {title}")
         d = data.iloc[::-1]
         fig = go.Figure(go.Bar(
             x=d.change.abs(), y=d.label, orientation="h",
@@ -98,9 +100,9 @@ for col, data, title, colour in ((lc, worse, "Growing", design.NEGATIVE),
             customdata=d[["reviews_before", "reviews_after"]],
             hovertemplate="%{y}<br>%{customdata[0]:,.0f} to %{customdata[1]:,.0f}"
                           " reviews<extra></extra>"))
-        fig.update_traces(marker_cornerradius=4)
-        st.plotly_chart(design.style(fig, height=34 * len(d) + 80,
-                                     xlab="Change in share of reviews"),
+        fig.update_traces(marker_cornerradius=5)
+        st.plotly_chart(design.style(fig, height=34 * len(d) + 90,
+                                     xlab="Change in share of all reviews"),
                         width="stretch", config={"displayModeBar": False})
 
 st.markdown("## Track a topic week by week")
@@ -119,19 +121,19 @@ if chosen:
         d = plot[plot.label == name]
         fig.add_trace(go.Scatter(
             x=d.week, y=d.reviews, name=name, mode="lines",
-            line=dict(color=design.SERIES[i % len(design.SERIES)], width=2),
+            line=dict(color=design.SERIES[i % len(design.SERIES)], width=2.2),
             hovertemplate="%{x|%d %b}<br>%{y:,} reviews<extra>" + name + "</extra>"))
     fig.add_vline(x=split, line_width=1, line_color=design.AXIS)
     st.plotly_chart(design.style(fig, height=380, legend=len(chosen) > 1,
                                  ylab="Reviews that week"),
                     width="stretch", config={"displayModeBar": False})
-    design.note("The vertical line marks the dividing line set above.")
+    design.note("The vertical line is the dividing line set above.")
 else:
     st.info("Choose at least one topic to plot.")
 
 with st.expander("How to read this"):
     st.markdown(
-        "- Ranked by **portion of reviews**, not raw counts — some weeks are "
+        "- Ranked by **share of all reviews**, not raw counts — some weeks are "
         "simply busier.\n"
         "- Only app versions with 1,000+ reviews are listed.\n"
         "- Topics under 30 reviews are hidden as too small to trust.")

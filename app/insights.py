@@ -23,13 +23,6 @@ from shared import MODEL, sql
 
 WINDOW_WEEKS = 8
 
-# Real topics, but nothing anyone can act on: two hold reviews that are angry
-# without saying why, and one groups reviews by the language they are written in
-# rather than their subject. They stay visible on the Topics page, where their
-# size is the point; they are kept out of a list headed "fix this first",
-# because that list is a recommendation.
-NOT_ACTIONABLE = ("no detail given", "Reviews in Hindi and Hinglish")
-
 EMOJI = re.compile("[\U0001F000-\U0001FAFF\u2190-\u2BFF\u2600-\u27BF\uFE0F]")
 
 
@@ -65,7 +58,8 @@ def priorities(limit: int = 5, window_weeks: int = WINDOW_WEEKS,
           FROM review_themes rt
           JOIN reviews r ON r.app = rt.app AND r.review_id = rt.review_id
           JOIN themes t ON t.model = rt.model AND t.theme_id = rt.theme_id
-         WHERE rt.model = %s AND rt.theme_id >= 0 AND t.avg_rating <= 2.8
+         WHERE rt.model = %s AND rt.theme_id >= 0 AND t.actionable
+           AND t.avg_rating <= 2.8
            {area_sql}{span}
          GROUP BY 1, 2, 3, 4, 5""", (MODEL,))
     if weekly.empty:
@@ -99,7 +93,6 @@ def priorities(limit: int = 5, window_weeks: int = WINDOW_WEEKS,
 
     m["change_pct"] = ((m.reviews - m.reviews_prior)
                        / m.reviews_prior.replace(0, pd.NA) * 100)
-    m = m[~m.name.str.contains("|".join(NOT_ACTIONABLE), case=False, regex=True)]
     m = m[m.reviews >= 25].sort_values("score", ascending=False).head(limit)
 
     # Several candidates per topic, so a quote free of emoji can be preferred.

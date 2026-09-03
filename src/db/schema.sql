@@ -129,6 +129,13 @@ ALTER TABLE themes ADD COLUMN IF NOT EXISTS display_name TEXT;
 -- Phase 7: business area a topic rolls up to (src/clustering/theme_categories.py).
 ALTER TABLE themes ADD COLUMN IF NOT EXISTS category TEXT;
 
+-- False for themes that are real but that no team can act on: reviews grouped by
+-- the language they are written in rather than by subject, and reviews that are
+-- angry without saying why. Set by src/clustering/theme_names.py. The business
+-- screens and any Power BI report filter on this; totals never do, so nothing is
+-- hidden from the numbers — only from lists headed "fix this".
+ALTER TABLE themes ADD COLUMN IF NOT EXISTS actionable BOOLEAN NOT NULL DEFAULT true;
+
 -- Phase 7: a named filter combination a team member can return to.
 CREATE TABLE IF NOT EXISTS saved_views (
     name       TEXT        PRIMARY KEY,

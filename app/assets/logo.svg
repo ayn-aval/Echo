@@ -1,12 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="164" height="40" viewBox="0 0 164 40" role="img" aria-label="Echo">
-  <rect x="0" y="4" width="32" height="32" rx="9" fill="#2a78d6"/>
-  <circle cx="11.5" cy="20" r="2.6" fill="#ffffff"/>
-  <path d="M17 13.6a9 9 0 0 1 0 12.8" stroke="#ffffff" stroke-width="2.3"
-        stroke-linecap="round" fill="none" opacity="0.95"/>
-  <path d="M21.6 10.2a14 14 0 0 1 0 19.6" stroke="#ffffff" stroke-width="2.3"
-        stroke-linecap="round" fill="none" opacity="0.62"/>
-  <path d="M26.2 7a19 19 0 0 1 0 26" stroke="#ffffff" stroke-width="2.3"
-        stroke-linecap="round" fill="none" opacity="0.32"/>
-  <text x="42" y="27" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif"
-        font-size="22" font-weight="680" letter-spacing="-0.5" fill="#0b0b0b">Echo</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="188" height="44" viewBox="0 0 188 44" role="img" aria-label="Echo">
+  <rect x="0" y="4" width="36" height="36" rx="10" fill="#2a78d6"/>
+  <circle cx="13" cy="22" r="2.9" fill="#ffffff"/>
+  <path d="M19 14.8a10 10 0 0 1 0 14.4" stroke="#ffffff" stroke-width="2.6"
+        stroke-linecap="round" fill="none"/>
+  <path d="M24.2 11a15.6 15.6 0 0 1 0 22" stroke="#ffffff" stroke-width="2.6"
+        stroke-linecap="round" fill="none" opacity="0.6"/>
+  <path d="M29.4 7.2a21.2 21.2 0 0 1 0 29.6" stroke="#ffffff" stroke-width="2.6"
+        stroke-linecap="round" fill="none" opacity="0.3"/>
+  <text x="46" y="30" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif"
+        font-size="27" font-weight="700" letter-spacing="-0.9" fill="#101827">Echo</text>
 </svg>

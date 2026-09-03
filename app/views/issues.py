@@ -1,10 +1,16 @@
-"""Themes — what customers talk about, grouped by meaning."""
+"""Topics — what customers talk about, grouped by meaning.
+
+Every topic carries a name written from its contents (src/clustering/theme_names.py).
+Topics nobody can act on — reviews grouped by the language they are written in,
+and reviews that are angry without saying why — are excluded here and shown on
+How it works instead.
+"""
 
 import design
 import plotly.graph_objects as go
 from shared import MODEL, sql, st
 
-design.appbar("Understand", "What customers raise")
+design.appbar("Understand", "Topics")
 
 F = st.session_state["filters"]
 
@@ -14,7 +20,7 @@ themes = sql(f"""
            t.top_terms, t.n_rows, t.avg_rating,
            -- The review nearest the cluster centre is the most typical, but for
            -- a praise topic that is often literally "good" — true, and useless
-           -- to read. Among the 50 most typical, show the one with the most to
+           -- to read. Among the 200 most typical, show the one with the most to
            -- say, so the example illustrates the topic instead of just proving
            -- it exists.
            (SELECT y.content FROM (
@@ -25,7 +31,7 @@ themes = sql(f"""
                ORDER BY rt.strength DESC LIMIT 200) y
             ORDER BY y.word_count DESC LIMIT 1) AS example
       FROM themes t
-     WHERE t.model = %s {F.area_clause('t')}
+     WHERE t.model = %s AND t.actionable {F.area_clause('t')}
      ORDER BY t.n_rows DESC""", (MODEL,))
 
 if themes.empty:
@@ -34,21 +40,23 @@ if themes.empty:
 
 complaints = themes[themes.avg_rating <= 2.5]
 praise = themes[themes.avg_rating >= 4.0]
+biggest = complaints.nlargest(1, "n_rows").iloc[0]
 
-design.tiles([
-    ("Topics found", f"{len(themes):,}", "discovered automatically"),
-    ("Complaint topics", f"{len(complaints):,}",
-     f"{complaints.n_rows.sum():,} reviews averaging 2 stars or less"),
-    ("Biggest complaint", f"{complaints.n_rows.max():,}",
-     f"reviews about {complaints.nlargest(1, 'n_rows').label.iloc[0]}"),
-])
+design.hero(
+    eyebrow="Grouped automatically from what people wrote",
+    headline=f"The single biggest complaint is “{biggest.label.lower()}”",
+    value=f"{biggest.n_rows:,}",
+    unit="customers said it",
+    side=(f"<b>{len(themes)}</b> subjects found in all<br>"
+          f"<b>{len(complaints)}</b> are complaints, totalling "
+          f"<b>{complaints.n_rows.sum():,}</b> reviews"))
 
 view = st.radio("Show", ["Complaints", "Praise", "Everything"],
                 horizontal=True, label_visibility="collapsed")
 subset = {"Complaints": complaints, "Praise": praise,
           "Everything": themes}[view].nlargest(12, "n_rows")
 
-st.markdown(f"## Top {view.lower()} by number of reviews")
+st.markdown(f"## Most talked about — {view.lower()}")
 
 bars = subset.iloc[::-1]
 colours = [design.NEGATIVE if r <= 2.5 else design.NEUTRAL if r < 4
@@ -59,23 +67,22 @@ fig = go.Figure(go.Bar(
     text=[f"{n:,}" for n in bars.n_rows], textposition="outside",
     textfont=dict(color=design.INK_2, size=12),
     customdata=bars.avg_rating,
-    hovertemplate="%{y}<br>%{x:,} reviews<br>%{customdata:.1f} stars average"
+    hovertemplate="%{y}<br>%{x:,} reviews<br>%{customdata:.1f} stars"
                   "<extra></extra>"))
-fig.update_traces(marker_cornerradius=4)
-st.plotly_chart(design.style(fig, height=40 * len(bars) + 90),
+fig.update_traces(marker_cornerradius=5)
+st.plotly_chart(design.style(fig, height=40 * len(bars) + 90, xlab="Reviews"),
                 width="stretch", config={"displayModeBar": False})
-design.note("Red bars are topics where customers rated 2 stars or less. "
-            "Blue bars are topics where they rated 4 stars or more.")
+if view == "Everything":
+    design.note("Red: rated 2 stars or less. Blue: rated 4 stars or more.")
 
 st.markdown("## Look inside a topic")
 
-labels = {int(r.theme_id): f"{r.label}  ({r.n_rows:,} reviews, {r.avg_rating:.1f} stars)"
+labels = {int(r.theme_id): f"{r.label}  —  {r.n_rows:,} reviews, {r.avg_rating:.1f} stars"
           for r in themes.itertuples()}
 # Default to the largest complaint rather than the largest topic overall. The
 # largest topic is one-word praise — accurate, and a poor thing to land on.
 ids = list(labels)
-default_id = int(complaints.nlargest(1, "n_rows").theme_id.iloc[0]) \
-    if not complaints.empty else ids[0]
+default_id = int(biggest.theme_id) if not complaints.empty else ids[0]
 chosen = st.selectbox("Choose a topic", ids, index=ids.index(default_id),
                       format_func=lambda i: labels[i], label_visibility="collapsed")
 row = themes[themes.theme_id == chosen].iloc[0]
@@ -85,21 +92,18 @@ mood = ("Unhappy" if row.avg_rating <= 2.5
 pill = "pill-neg" if row.avg_rating <= 2.5 else "pill-pos"
 st.markdown(
     f"<div class='card'><span class='pill {pill}'>{mood}</span>"
-    f"<div style='margin-top:12px;font-size:1.05rem;color:{design.INK};'>"
+    f"<span class='area-tag'>{row.area}</span>"
+    f"<div style='margin-top:14px;font-size:1.05rem;color:{design.INK};'>"
     f"<strong>{row.n_rows:,} reviews</strong> &nbsp;·&nbsp; "
     f"{row.avg_rating:.1f} stars on average</div>"
-    f"<div style='margin-top:10px;color:{design.INK_2};font-size:.92rem;'>"
-    f"Words that set this topic apart: {row.top_terms}</div>"
-    f"<div style='margin-top:14px;padding-left:14px;"
-    f"border-left:3px solid {design.AXIS};color:{design.INK_2};"
-    f"font-size:.95rem;line-height:1.55;'>"
+    f"<div class='issue quote' style='margin-top:14px;border:0;'>"
     f"“{str(row.example)[:400]}”</div>"
-    f"<div style='margin-top:8px;color:{design.MUTED};font-size:.78rem;'>"
-    f"The review closest to the centre of this topic</div></div>",
+    f"<div style='margin-top:9px;color:{design.MUTED};font-size:.76rem;'>"
+    f"A typical review from this topic &nbsp;·&nbsp; "
+    f"words that set it apart: {row.top_terms}</div></div>",
     unsafe_allow_html=True)
 
-order = st.radio("Sort reviews by",
-                 ["Most typical", "Newest", "Lowest rated"],
+order = st.radio("Sort reviews by", ["Most typical", "Newest", "Lowest rated"],
                  horizontal=True, label_visibility="collapsed")
 sort = {"Most typical": "rt.strength DESC", "Newest": "r.reviewed_at DESC",
         "Lowest rated": "r.score ASC, rt.strength DESC"}[order]
@@ -123,5 +127,6 @@ with st.expander("About these topics"):
         "- Topics are found from the reviews themselves — nobody wrote the list "
         "in advance.\n"
         "- About a third of reviews are too vague to place in any topic.\n"
-        "- One topic groups Hindi and Hinglish reviews by language rather than "
-        "subject. That is a known limit.")
+        "- Four topics are left out here because no team can act on them: two "
+        "group reviews by the language they are written in, and two hold "
+        "reviews that are angry without saying why. They are on **How it works**.")

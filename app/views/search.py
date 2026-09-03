@@ -1,4 +1,4 @@
-"""Search — find reviews by what they mean."""
+"""Search — find reviews by what they mean, not the words they use."""
 
 import sys
 import time
@@ -10,33 +10,30 @@ import design
 import shared
 from shared import st
 
-design.appbar("Understand", "Find reviews")
+design.appbar("Understand", "Search",
+              right="Searching <b>45,864</b> reviews")
 
 EXAMPLES = ["the app keeps crashing", "my refund never arrived",
             "delivery was later than promised", "I was charged extra"]
 
 c1, c2 = st.columns([5, 1], gap="medium")
 with c1:
-    query = st.text_input("Search", placeholder="e.g. the order arrived cold",
+    query = st.text_input("Search", placeholder="Type what a customer might say",
                           label_visibility="collapsed")
 with c2:
-    k = st.selectbox("Results", [10, 25, 50], label_visibility="collapsed")
+    k = st.selectbox("Results", [10, 25, 50], label_visibility="collapsed",
+                     format_func=lambda n: f"Top {n}")
 
-design.note("Try: " + "  ·  ".join(EXAMPLES))
-
-careful = st.toggle(
-    "More careful search (slower, more accurate)",
-    value=False,
-    help="Reads your search and each review together, one pair at a time, "
-         "instead of comparing them at a distance. Finds noticeably better "
-         "matches and takes about a tenth of a second instead of instantly.")
+careful = st.toggle("More careful search — slower, finds better matches",
+                    value=False)
 
 if not query:
-    st.markdown(
-        f"<div class='card' style='color:{design.INK_2};'>"
-        "Type what a customer might say. Reviews that mean the same thing come "
-        "back, even when they use completely different words.</div>",
-        unsafe_allow_html=True)
+    design.hero(
+        eyebrow="Search by meaning",
+        headline="Find reviews that mean the same thing, in different words",
+        value="45,864",
+        unit="reviews searched at once",
+        side="Try:<br>" + "<br>".join(f"<b>{e}</b>" for e in EXAMPLES[:3]))
     st.stop()
 
 shared.get_search()
@@ -52,20 +49,14 @@ else:
     hits = search(query, k=int(k))
 elapsed = (time.perf_counter() - start) * 1000
 
-design.tiles([
-    ("Reviews searched", "45,864", "every distinct review"),
-    ("Matches shown", f"{len(hits)}", "ranked by how closely they match"),
-    ("Time taken", f"{elapsed:.0f} ms",
-     "more careful search" if careful else "instant search"),
-])
-
 best = hits.iloc[0]
-st.markdown(
-    f"<div class='card'><div style='color:{design.MUTED};font-size:.75rem;"
-    f"text-transform:uppercase;letter-spacing:.06em;'>Closest match</div>"
-    f"<div style='margin-top:10px;font-size:1.05rem;color:{design.INK};"
-    f"line-height:1.55;'>“{str(best.content)[:400]}”</div></div>",
-    unsafe_allow_html=True)
+design.hero(
+    eyebrow=f"Closest match for “{query}”",
+    headline=f"“{' '.join(str(best.content).split())[:150]}”",
+    value=f"{len(hits)}",
+    unit="matching reviews",
+    side=(f"Found in <b>{elapsed:.0f} ms</b><br>"
+          + ("Checked twice for accuracy" if careful else "Fast search")))
 
 st.markdown("## All matches")
 
@@ -74,8 +65,7 @@ if not careful:
     table["match"] = hits.score.clip(0, 1)
     cfg = {"rank": st.column_config.NumberColumn("#", width="small"),
            "match": st.column_config.ProgressColumn(
-               "Match", min_value=0.0, max_value=1.0,
-               help="How close in meaning, from 0 to 1."),
+               "How close", min_value=0.0, max_value=1.0),
            "content": "Review"}
     table = table[["rank", "match", "content"]]
 else:
@@ -87,11 +77,11 @@ st.dataframe(table, hide_index=True, width="stretch", height=440,
 
 if careful:
     moved = int((hits.faiss_rank != hits["rank"]).sum())
-    design.note(f"The careful search reordered {moved} of these {len(hits)} "
-                "results, promoting reviews the fast search had ranked lower.")
+    design.note(f"The careful search moved {moved} of these {len(hits)} results, "
+                "promoting reviews the fast search had ranked lower.")
 
 with st.expander("Where this struggles"):
     st.markdown(
-        "Hindi and Hinglish reviews can return the opposite meaning — searching "
-        "for *food was cold* may return *food was very good*. About 4% of "
-        "reviews are affected.")
+        "Hindi and Hinglish reviews can come back with the opposite meaning — "
+        "searching for *food was cold* may return *food was very good*. "
+        "About 4% of reviews are affected.")

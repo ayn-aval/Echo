@@ -26,3 +26,8 @@ plotly==7.0.0
 
 # Phase 6 — semantic search
 faiss-cpu==1.15.0
+
+# Verification only, not needed to run the app: eval/shoot_app.py drives real
+# Chrome to photograph every dashboard screen, because no automated test can
+# tell that a screen looks wrong. Uses the installed Chrome, downloads nothing.
+playwright
