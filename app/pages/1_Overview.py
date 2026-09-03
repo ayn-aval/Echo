@@ -1,98 +1,104 @@
-"""Overview — how much data there is and what it looks like.
-
-Every figure on this page comes from all 100,000 reviews, NOT the 64,280 kept for
-theme discovery. Phase 1 established that filtering out short reviews raises the
-1-star share, because angry users explain themselves and happy ones type "good".
-A rating distribution built on the themed subset would be wrong, and wrong in a
-direction that flatters nothing — it would just be untrue.
-"""
+"""Overview — what customers are saying, at a glance."""
 
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import shared
+import design
+import plotly.graph_objects as go
 from shared import ALL_REVIEWS, sql, st
 
-import plotly.express as px
+design.setup("Overview")
+design.header(
+    "Overview",
+    "Every review Swiggy received on the Google Play Store between January and "
+    "August 2026, and how customers rated the app over that time.")
 
-shared.page("Overview", "📊", "The dataset behind everything else.")
-
-summary = sql(f"""
-    SELECT count(*)                                   AS reviews,
-           min(reviewed_at)::date                     AS first_day,
-           max(reviewed_at)::date                     AS last_day,
-           round(avg(score)::numeric, 2)              AS avg_rating,
-           count(*) FILTER (WHERE keep_for_themes)    AS themed,
-           -- counted, not subtracted: this is the number that would expose a
-           -- collection gap, and Phase 1 verified there are none.
-           count(DISTINCT reviewed_at::date)          AS days
+s = sql(f"""
+    SELECT count(*)                                AS reviews,
+           min(reviewed_at)::date                  AS first_day,
+           max(reviewed_at)::date                  AS last_day,
+           round(avg(score)::numeric, 2)           AS avg_rating,
+           count(*) FILTER (WHERE score <= 2)      AS unhappy,
+           count(DISTINCT reviewed_at::date)       AS days
       FROM reviews WHERE {ALL_REVIEWS}""").iloc[0]
-
-days = int(summary.days)
-
-a, b, c, d = st.columns(4)
-a.metric("Reviews collected", f"{summary.reviews:,}")
-b.metric("Average rating", f"{summary.avg_rating} ★")
-c.metric("Days covered", f"{days}",
-         help=f"{summary.first_day} to {summary.last_day}")
-d.metric("With enough text to cluster", f"{summary.themed:,}",
-         delta=f"{summary.themed / summary.reviews * 100:.1f}% of all reviews",
-         delta_color="off")
-
-shared.corpus_note()
-st.divider()
 
 ratings = sql(f"""SELECT score, count(*) AS reviews FROM reviews
                    WHERE {ALL_REVIEWS} GROUP BY score ORDER BY score""")
 ratings["share"] = ratings.reviews / ratings.reviews.sum() * 100
 
 volume = sql(f"""SELECT reviewed_at::date AS day, count(*) AS reviews,
-                        round(avg(score)::numeric, 2) AS avg_rating
-                   FROM reviews WHERE {ALL_REVIEWS}
-                  GROUP BY 1 ORDER BY 1""")
+                        avg(score) AS avg_rating
+                   FROM reviews WHERE {ALL_REVIEWS} GROUP BY 1 ORDER BY 1""")
 
-left, right = st.columns([2, 3])
+design.tiles([
+    ("Reviews", f"{s.reviews:,}", f"{s.first_day:%d %b} to {s.last_day:%d %b %Y}"),
+    ("Average rating", f"{s.avg_rating}", "out of 5 stars"),
+    ("Unhappy customers", f"{s.unhappy / s.reviews * 100:.0f}%",
+     f"{s.unhappy:,} people gave 1 or 2 stars"),
+    ("Reviews per day", f"{s.reviews / s.days:,.0f}", f"across {s.days} days"),
+])
+
+st.markdown("## How customers rate the app")
+design.note("Most people either love it or hate it. Very few sit in the middle.")
+
+left, right = st.columns([2, 3], gap="large")
 
 with left:
-    st.subheader("Rating distribution")
-    fig = px.bar(ratings, x="score", y="reviews", text=ratings.share.round(1),
-                 labels={"score": "Star rating", "reviews": "Reviews"})
-    fig.update_traces(texttemplate="%{text}%", textposition="outside",
-                      marker_color="#f2704a")
-    fig.update_layout(height=340, margin=dict(l=0, r=0, t=10, b=0),
-                      xaxis=dict(tickmode="linear"))
-    st.plotly_chart(fig, width='stretch')
-    one, five = ratings.share.iloc[0], ratings.share.iloc[-1]
-    st.caption(f"Bimodal, as app-store ratings usually are: **{one:.1f}% one-star** "
-               f"and **{five:.1f}% five-star**, with little in between. People "
-               f"tend to review when delighted or angry.")
+    colours = [design.NEGATIVE if v <= 2 else design.NEUTRAL if v == 3
+               else design.POSITIVE for v in ratings.score]
+    fig = go.Figure(go.Bar(
+        x=[f"{v} star" if v == 1 else f"{v} stars" for v in ratings.score],
+        y=ratings.reviews, marker_color=colours,
+        marker_line_width=0, width=0.62,
+        text=[f"{p:.0f}%" for p in ratings.share], textposition="outside",
+        textfont=dict(color=design.INK_2, size=12),
+        hovertemplate="%{x}<br>%{y:,} reviews<extra></extra>"))
+    fig.update_traces(marker_cornerradius=4)
+    st.plotly_chart(design.style(fig, height=330, ylab="Reviews"),
+                    width="stretch", config={"displayModeBar": False})
 
 with right:
-    st.subheader("Review volume over time")
-    smooth = st.checkbox("7-day rolling average", value=True,
-                         help="Daily counts are noisy; the rolling average makes "
-                              "the trend readable.")
-    series = volume.copy()
-    if smooth:
-        series["reviews"] = series.reviews.rolling(7, min_periods=1).mean()
-    fig = px.area(series, x="day", y="reviews",
-                  labels={"day": "", "reviews": "Reviews per day"})
-    fig.update_traces(line_color="#f2704a", fillcolor="rgba(242,112,74,0.18)")
-    fig.update_layout(height=340, margin=dict(l=0, r=0, t=10, b=0))
-    st.plotly_chart(fig, width='stretch')
-    st.caption(f"About {volume.reviews.mean():.0f} reviews a day across {days} days, "
-               "with zero missing days. The dip in late April 2026 is real, not a "
-               "gap in collection — worth explaining, not smoothing away.")
+    v = volume.copy()
+    v["smooth"] = v.reviews.rolling(7, min_periods=1).mean()
+    fig = go.Figure(go.Scatter(
+        x=v.day, y=v.smooth, mode="lines", line=dict(color=design.BLUE, width=2),
+        fill="tozeroy", fillcolor="rgba(42,120,214,0.10)",
+        hovertemplate="%{x|%d %b %Y}<br>%{y:.0f} reviews/day<extra></extra>"))
+    st.plotly_chart(design.style(fig, height=330, ylab="Reviews per day"),
+                    width="stretch", config={"displayModeBar": False})
+    design.note("Daily review volume, smoothed over 7 days. The dip in late "
+                "April is real — fewer people reviewed, not a gap in the data.")
 
-st.divider()
-st.subheader("Average rating over time")
-trend = volume.copy()
-trend["avg_rating"] = trend.avg_rating.rolling(7, min_periods=1).mean()
-fig = px.line(trend, x="day", y="avg_rating", labels={"day": "", "avg_rating": "Average ★"})
-fig.update_traces(line_color="#2d6a9f")
-fig.update_layout(height=260, margin=dict(l=0, r=0, t=10, b=0), yaxis_range=[1, 5])
-st.plotly_chart(fig, width='stretch')
-st.caption("7-day rolling average. A sustained fall here is the signal the "
-           "Trends page exists to explain.")
+st.markdown("## Is satisfaction improving?")
+
+v = volume.copy()
+v["smooth"] = v.avg_rating.rolling(14, min_periods=1).mean()
+first, last = v.smooth.iloc[0], v.smooth.iloc[-1]
+direction = "improved" if last > first else "declined"
+
+fig = go.Figure(go.Scatter(
+    x=v.day, y=v.smooth, mode="lines",
+    line=dict(color=design.BLUE, width=2),
+    hovertemplate="%{x|%d %b %Y}<br>%{y:.2f} stars<extra></extra>"))
+fig.add_hline(y=3, line_width=1, line_color=design.AXIS)
+st.plotly_chart(design.style(fig, height=280, ylab="Average rating"),
+                width="stretch", config={"displayModeBar": False})
+
+design.note(f"Average rating over time, smoothed over 14 days. It has "
+            f"{direction} from {first:.2f} to {last:.2f} stars since January. "
+            f"The line marks 3 stars — the neutral middle.")
+
+with st.expander("About this data"):
+    st.markdown(f"""
+Reviews were collected from the Google Play Store for the Swiggy Android app,
+covering **{s.first_day:%d %B %Y} to {s.last_day:%d %B %Y}** with no missing days.
+
+The figures on this page use **all {s.reviews:,} reviews**. The Themes and Trends
+pages use the **64,280 reviews with more than one word**, because a review that
+says only "good" cannot be grouped by what it is about. Both numbers are reported
+rather than one standing in for the other: dropping short reviews would raise the
+share of unhappy customers, so a rating chart built on that smaller set would
+overstate dissatisfaction.
+""")

@@ -119,3 +119,9 @@ CREATE TABLE IF NOT EXISTS theme_audit (
     judged_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (app, review_id, model)
 );
+
+-- Phase 7: a human-readable name for a theme, curated once and verified against
+-- the theme's own terms before use (see src/clustering/theme_names.py). The
+-- machine label stays in themes.label as the evidence; display_name is what a
+-- reader sees. NULL means "no curated name yet" and the machine label is shown.
+ALTER TABLE themes ADD COLUMN IF NOT EXISTS display_name TEXT;

@@ -1,54 +1,88 @@
-"""Echo — customer feedback intelligence from app reviews.
+"""Echo — the landing page.
 
     streamlit run app/main.py
 
-The landing page. Streamlit discovers app/pages/*.py automatically and builds the
-sidebar from their filenames, so there is no navigation code here.
-
-app/label.py and app/audit.py deliberately live outside pages/ — they are internal
-annotation tools that write to the database, and they have no place in a
-dashboard someone is reading.
+Streamlit discovers app/pages/*.py automatically. app/label.py and app/audit.py
+sit outside pages/ on purpose: they are internal annotation tools that write to
+the database, and have no place in a dashboard someone is reading.
 """
 
-import shared
-from shared import st
+import sys
+from pathlib import Path
 
-shared.page("Echo", "📣",
-            "Turning 100,000 Swiggy Play Store reviews into tracked themes.")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-st.markdown("""
-Keyword counting cannot group app reviews, because people describe the same
-problem in completely different words — *"app keeps crashing"*, *"closes by
-itself"*, *"shuts down when I open it"*. This project groups them by **meaning**,
-using a sentence embedding model reproduced from
-**Sentence-BERT (Reimers & Gurevych, 2019)** and then adapted to this corpus.
-""")
+import design
+from shared import ALL_REVIEWS, MODEL, sql, st
 
-left, right = st.columns(2)
-with left:
-    st.subheader("The pages")
-    st.markdown("""
-| page | what it answers |
-|---|---|
-| **Overview** | How much data is there, and what does it look like? |
-| **Themes** | What are people talking about, and how many said it? |
-| **Trends** | What got worse after the last release? |
-| **Search** | Show me every review about *this*, by meaning. |
-| **Model comparison** | Does any of this actually work? |
-""")
+design.setup("Echo")
 
-with right:
-    st.subheader("Headline results")
-    st.markdown("""
-| result | number |
-|---|---|
-| STS reproduction vs the paper's 74.21 | **74.54** |
-| Review retrieval, Precision@10 | **75.77** (TF-IDF: 65.00) |
-| Theme quality, blind audit | **82.4%** (GloVe: 44.1%) |
-| Search latency, p50 | **8.56 ms** |
-""")
-    st.caption("Every number is reproducible from a script in `eval/` and is "
-               "shown with its caveats on the Model comparison page.")
+st.markdown(
+    f"<div style='color:{design.MUTED};font-size:.78rem;font-weight:600;"
+    f"letter-spacing:.10em;text-transform:uppercase;margin-bottom:6px;'>Echo</div>",
+    unsafe_allow_html=True)
+design.header(
+    "What are customers actually complaining about?",
+    "100,000 Swiggy reviews from the Google Play Store, sorted automatically by "
+    "what they are about — so the biggest problems, and the ones getting worse, "
+    "are visible without anyone reading them all.")
 
-st.divider()
-shared.corpus_note()
+s = sql(f"""SELECT count(*) AS reviews,
+                   count(*) FILTER (WHERE score <= 2) AS unhappy,
+                   min(reviewed_at)::date AS first_day,
+                   max(reviewed_at)::date AS last_day
+              FROM reviews WHERE {ALL_REVIEWS}""").iloc[0]
+
+worst = sql("""SELECT coalesce(display_name, label) AS name, n_rows
+                 FROM themes WHERE model = %s AND avg_rating <= 2.5
+                ORDER BY n_rows DESC LIMIT 1""", (MODEL,))
+
+design.tiles([
+    ("Reviews analysed", f"{s.reviews:,}",
+     f"{s.first_day:%B %Y} to {s.last_day:%B %Y}"),
+    ("Unhappy customers", f"{s.unhappy / s.reviews * 100:.0f}%",
+     f"{s.unhappy:,} people rated it 1 or 2 stars"),
+    ("Biggest complaint",
+     worst.name.iloc[0] if not worst.empty else "—",
+     f"{worst.n_rows.iloc[0]:,} reviews" if not worst.empty else ""),
+])
+
+st.markdown("## Where to start")
+
+PAGES = [
+    ("Overview", "How many reviews there are, how people rate the app, and "
+                 "whether satisfaction is improving."),
+    ("Topics", "Every subject customers raise, ranked by how many people "
+               "raised it. Open one to read the reviews behind it."),
+    ("Trends", "Compare two periods to see which complaints are growing. "
+               "Set the dividing line to a release date to see what it broke."),
+    ("Search", "Describe a problem in your own words and find every review "
+               "that means the same thing, however it was worded."),
+    ("Results", "The evidence that this works, including where it does not."),
+]
+
+cols = st.columns(len(PAGES), gap="medium")
+for col, (name, what) in zip(cols, PAGES):
+    with col:
+        st.markdown(
+            f"<div class='card' style='height:100%;'>"
+            f"<div style='font-weight:640;color:{design.INK};font-size:1rem;"
+            f"margin-bottom:8px;'>{name}</div>"
+            f"<div style='color:{design.INK_2};font-size:.88rem;line-height:1.55;'>"
+            f"{what}</div></div>", unsafe_allow_html=True)
+
+design.note("Choose a page from the sidebar on the left.")
+
+st.markdown("## Why this is not a keyword search")
+st.markdown(
+    f"<div class='card' style='color:{design.INK_2};line-height:1.7;"
+    f"font-size:.95rem;'>"
+    "People describe the same problem in completely different words. "
+    "<em>“App keeps crashing”</em>, <em>“closes by itself”</em> and "
+    "<em>“shuts down when I open it”</em> are one problem written three ways, "
+    "and counting keywords would file them as three.<br><br>"
+    "Every review here is read by a model that was trained to judge whether two "
+    "sentences mean the same thing, then adapted to the way people actually "
+    "write app reviews — short, misspelled, and often mid-complaint. Reviews are "
+    "then grouped by that meaning rather than by their words."
+    "</div>", unsafe_allow_html=True)

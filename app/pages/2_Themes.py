@@ -1,126 +1,144 @@
-"""Themes — what people are talking about, and how many said it.
-
-Theme figures use the 64,280 reviews with enough text to cluster, not all
-100,000. That is the honest denominator: a one-word "good" cannot belong to a
-theme, and pretending otherwise would inflate every count.
-
-Two kinds of theme are shown rather than filtered out, both by explicit decision
-recorded in docs/PROGRESS.md:
-
-  * the generic-praise themes ("good", "nice / good / service") — the predicted
-    consequence of keeping 2+ word reviews rather than 4+, and arguably a finding
-    in themselves: a fifth of the corpus carries no actionable content.
-  * theme 39, which groups Hinglish reviews by language rather than by topic —
-    the Phase 4 finding that the model never bridged Hinglish to English, showing
-    up in the product.
-"""
+"""Themes — what customers talk about, grouped by meaning."""
 
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-import shared
+import design
+import plotly.graph_objects as go
 from shared import MODEL, sql, st
 
-import plotly.express as px
-
-shared.page("Themes", "🗂️", "110 themes discovered without being told what to look for.")
+design.setup("Topics")
+design.header(
+    "What customers talk about",
+    "Reviews are grouped by what they mean, not the words they use. A complaint "
+    "about the app crashing and one about it closing by itself land in the same "
+    "group, even though they share no words.")
 
 themes = sql("""
-    SELECT t.theme_id, t.label, t.top_terms, t.n_rows, t.n_texts,
-           t.avg_rating, r.content AS example
+    SELECT t.theme_id, coalesce(t.display_name, t.label) AS label,
+           t.top_terms, t.n_rows, t.avg_rating,
+           -- The review nearest the cluster centre is the most typical, but for
+           -- a praise topic that is often literally "good" — true, and useless
+           -- to read. Among the 50 most typical, show the one with the most to
+           -- say, so the example illustrates the topic instead of just proving
+           -- it exists.
+           (SELECT y.content FROM (
+              SELECT x.content, x.word_count
+                FROM review_themes rt
+                JOIN reviews x ON x.app = rt.app AND x.review_id = rt.review_id
+               WHERE rt.model = t.model AND rt.theme_id = t.theme_id
+               ORDER BY rt.strength DESC LIMIT 200) y
+            ORDER BY y.word_count DESC LIMIT 1) AS example
       FROM themes t
-      LEFT JOIN reviews r ON r.review_id = t.example_review_id
-     WHERE t.model = %s
-     ORDER BY t.n_rows DESC""", (MODEL,))
+     WHERE t.model = %s ORDER BY t.n_rows DESC""", (MODEL,))
 
 if themes.empty:
-    st.error("No themes yet. Run `python -m src.clustering.name_themes`.")
+    st.error("No topics yet. Run: python -m src.clustering.name_themes")
     st.stop()
 
-assigned = sql("""SELECT count(*) FILTER (WHERE theme_id >= 0) AS in_theme,
-                         count(*) AS total
-                    FROM review_themes WHERE model = %s""", (MODEL,)).iloc[0]
+complaints = themes[themes.avg_rating <= 2.5]
+praise = themes[themes.avg_rating >= 4.0]
 
-a, b, c = st.columns(3)
-a.metric("Themes", f"{len(themes):,}")
-b.metric("Reviews with a theme", f"{assigned.in_theme:,}",
-         delta=f"{assigned.in_theme / assigned.total * 100:.1f}% of clusterable reviews",
-         delta_color="off")
-c.metric("Largest theme", f"{themes.n_rows.max():,}",
-         delta=f"{themes.n_rows.max() / assigned.total * 100:.1f}% of the corpus",
-         delta_color="off")
+design.tiles([
+    ("Topics found", f"{len(themes):,}", "discovered automatically"),
+    ("Complaint topics", f"{len(complaints):,}",
+     f"{complaints.n_rows.sum():,} reviews averaging 2 stars or less"),
+    ("Biggest complaint", f"{complaints.n_rows.max():,}",
+     f"reviews about {complaints.nlargest(1, 'n_rows').label.iloc[0]}"),
+])
 
-shared.corpus_note()
-st.caption("The remainder is *noise* — HDBSCAN is allowed to say a review belongs "
-           "to no theme, which is what stops thousands of one-line reviews being "
-           "forced into a cluster and poisoning it.")
-st.divider()
+view = st.radio("Show", ["Complaints", "Praise", "Everything"],
+                horizontal=True, label_visibility="collapsed")
+subset = {"Complaints": complaints, "Praise": praise,
+          "Everything": themes}[view].nlargest(12, "n_rows")
 
-top_n = st.slider("Themes to chart", 5, 40, 15)
-chart = themes.head(top_n).iloc[::-1]
-fig = px.bar(chart, x="n_rows", y="label", orientation="h",
-             color="avg_rating", color_continuous_scale="RdYlGn",
-             range_color=[1, 5],
-             labels={"n_rows": "Reviews", "label": "", "avg_rating": "Avg ★"},
-             hover_data={"theme_id": True})
-fig.update_layout(height=28 * top_n + 120, margin=dict(l=0, r=0, t=10, b=0))
-st.plotly_chart(fig, width="stretch")
-st.caption("Colour is the average star rating: red themes are complaints, green "
-           "are praise. The complaint themes separate cleanly by rating without "
-           "anything being told to look for them.")
+st.markdown(f"## Top {view.lower()} by number of reviews")
 
-st.divider()
-st.subheader("Every theme")
-st.dataframe(
-    themes[["theme_id", "label", "n_rows", "avg_rating", "top_terms", "example"]],
-    hide_index=True, width="stretch", height=320,
-    column_config={
-        "theme_id": st.column_config.NumberColumn("#", width="small"),
-        "label": "Theme",
-        "n_rows": st.column_config.NumberColumn("Reviews", format="%d"),
-        "avg_rating": st.column_config.NumberColumn("Avg ★", format="%.2f"),
-        "top_terms": "Distinctive terms",
-        "example": "Most representative review",
-    })
+bars = subset.iloc[::-1]
+colours = [design.NEGATIVE if r <= 2.5 else design.NEUTRAL if r < 4
+           else design.POSITIVE for r in bars.avg_rating]
+fig = go.Figure(go.Bar(
+    x=bars.n_rows, y=bars.label, orientation="h",
+    marker_color=colours, marker_line_width=0,
+    text=[f"{n:,}" for n in bars.n_rows], textposition="outside",
+    textfont=dict(color=design.INK_2, size=12),
+    customdata=bars.avg_rating,
+    hovertemplate="%{y}<br>%{x:,} reviews<br>%{customdata:.1f} stars average"
+                  "<extra></extra>"))
+fig.update_traces(marker_cornerradius=4)
+st.plotly_chart(design.style(fig, height=40 * len(bars) + 90),
+                width="stretch", config={"displayModeBar": False})
+design.note("Red bars are topics where customers rated 2 stars or less. "
+            "Blue bars are topics where they rated 4 stars or more.")
 
-st.divider()
-st.subheader("Drill into a theme")
+st.markdown("## Look inside a topic")
 
-labels = {int(r.theme_id): f"[{r.theme_id}] {r.label}  ·  {r.n_rows:,} reviews  ·  {r.avg_rating}★"
+labels = {int(r.theme_id): f"{r.label}  ({r.n_rows:,} reviews, {r.avg_rating:.1f} stars)"
           for r in themes.itertuples()}
-chosen = st.selectbox("Theme", list(labels), format_func=lambda i: labels[i])
+# Default to the largest complaint rather than the largest topic overall. The
+# largest topic is one-word praise — accurate, and a poor thing to land on.
+ids = list(labels)
+default_id = int(complaints.nlargest(1, "n_rows").theme_id.iloc[0]) \
+    if not complaints.empty else ids[0]
+chosen = st.selectbox("Choose a topic", ids, index=ids.index(default_id),
+                      format_func=lambda i: labels[i], label_visibility="collapsed")
 row = themes[themes.theme_id == chosen].iloc[0]
 
-m1, m2, m3 = st.columns(3)
-m1.metric("Reviews", f"{row.n_rows:,}")
-m2.metric("Distinct texts", f"{row.n_texts:,}",
-          help="One text can be written by many people; 'good' appears 15,576 times.")
-m3.metric("Average rating", f"{row.avg_rating} ★")
-st.caption(f"**Distinctive terms:** {row.top_terms}")
+mood = ("Unhappy" if row.avg_rating <= 2.5
+        else "Mixed" if row.avg_rating < 4 else "Happy")
+pill = "pill-neg" if row.avg_rating <= 2.5 else "pill-pos"
+st.markdown(
+    f"<div class='card'><span class='pill {pill}'>{mood}</span>"
+    f"<div style='margin-top:12px;font-size:1.05rem;color:{design.INK};'>"
+    f"<strong>{row.n_rows:,} reviews</strong> &nbsp;·&nbsp; "
+    f"{row.avg_rating:.1f} stars on average</div>"
+    f"<div style='margin-top:10px;color:{design.INK_2};font-size:.92rem;'>"
+    f"Words that set this topic apart: {row.top_terms}</div>"
+    f"<div style='margin-top:14px;padding-left:14px;"
+    f"border-left:3px solid {design.AXIS};color:{design.INK_2};"
+    f"font-size:.95rem;line-height:1.55;'>"
+    f"“{str(row.example)[:400]}”</div>"
+    f"<div style='margin-top:8px;color:{design.MUTED};font-size:.78rem;'>"
+    f"The review closest to the centre of this topic</div></div>",
+    unsafe_allow_html=True)
 
-order = st.radio("Show", ["Most representative first", "Most recent first",
-                          "Lowest rated first"], horizontal=True)
-sort = {"Most representative first": "rt.strength DESC",
-        "Most recent first": "r.reviewed_at DESC",
-        "Lowest rated first": "r.score ASC, rt.strength DESC"}[order]
+order = st.radio("Sort reviews by",
+                 ["Most typical", "Newest", "Lowest rated"],
+                 horizontal=True, label_visibility="collapsed")
+sort = {"Most typical": "rt.strength DESC", "Newest": "r.reviewed_at DESC",
+        "Lowest rated": "r.score ASC, rt.strength DESC"}[order]
 
 reviews = sql(f"""
-    SELECT r.score, r.reviewed_at::date AS day, r.review_version AS version,
-           round(rt.strength::numeric, 2) AS strength, r.content
+    SELECT r.score AS stars, r.reviewed_at::date AS date, r.content AS review
       FROM review_themes rt
       JOIN reviews r ON r.app = rt.app AND r.review_id = rt.review_id
      WHERE rt.model = %s AND rt.theme_id = %s
      ORDER BY {sort} LIMIT 200""", (MODEL, int(chosen)))
 
-st.dataframe(reviews, hide_index=True, width="stretch", height=380,
+st.dataframe(reviews, hide_index=True, width="stretch", height=360,
              column_config={
-                 "score": st.column_config.NumberColumn("★", width="small"),
-                 "day": "Date", "version": "App version",
-                 "strength": st.column_config.ProgressColumn(
-                     "Fit", min_value=0.0, max_value=1.0,
-                     help="How firmly HDBSCAN placed this review in the theme."),
-                 "content": "Review",
-             })
-st.caption(f"Showing up to 200 of {row.n_rows:,} reviews in this theme.")
+                 "stars": st.column_config.NumberColumn("Stars", width="small"),
+                 "date": st.column_config.DateColumn("Date", width="small"),
+                 "review": "Review"})
+design.note(f"Showing {len(reviews)} of {row.n_rows:,} reviews in this topic.")
+
+with st.expander("How topics are found, and what they miss"):
+    st.markdown(f"""
+Every review is turned into a list of numbers that represents its meaning, then
+reviews with similar numbers are grouped together. Nobody wrote the topic list in
+advance — the {len(themes)} topics were discovered from the reviews themselves.
+
+**Two things worth knowing.**
+
+Around a third of reviews are not placed in any topic. That is deliberate: a
+review saying only "good app" is not about anything in particular, and forcing it
+into a topic would corrupt that topic.
+
+Several of the largest topics are simply praise — "good", "nice", "excellent".
+That is honest rather than useful: a fifth of all reviews carry no specific
+feedback at all. One large topic groups reviews written in Hindi and Hinglish
+together regardless of subject, because the model recognises the language but not
+what is being said in it. That is a real limitation of this system.
+""")
