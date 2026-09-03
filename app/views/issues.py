@@ -124,4 +124,4 @@ with st.expander("About these topics"):
         "in advance.\n"
         "- About a third of reviews are too vague to place in any topic.\n"
         "- One topic groups Hindi and Hinglish reviews by language rather than "
-        "subject. That is a known limit."))
+        "subject. That is a known limit.")

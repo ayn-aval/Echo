@@ -571,6 +571,20 @@ week-on-week percentage change without a count floor.
 
 ## Process notes for future sessions
 
+- **`AppTest` does NOT report a SyntaxError.** It prints one to stderr and then
+  returns an AppTest whose `.exception` is `None`, so a file that does not even
+  parse reports as passing. Four screens shipped broken this way, verified "ok"
+  by a check that suppressed stderr. **Run `python -m eval.check_app`**, which
+  parses every file with `ast.parse` first, captures stderr during render, and
+  exits non-zero. Verified by deliberately breaking a file and confirming it
+  fails.
+- **An HTTP 200 from Streamlit proves nothing about a page.** The server returns
+  the app shell before any page code runs, so every route answers 200 even when
+  every page is broken. `curl` is not a test of a Streamlit screen.
+- **Index-based string surgery on source files is how those four broke.**
+  Replacing from a found offset to a computed end left the `)` that closed the
+  original call. When patching code, re-parse the file afterwards.
+
 - **Use `streamlit.testing.v1.AppTest` to check any page under `app/`.** Two
   Streamlit bugs shipped because they were verified in modes that could not
   reproduce them: `sys.path[0]` is the script's directory under Streamlit (not the

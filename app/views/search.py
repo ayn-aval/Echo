@@ -94,4 +94,4 @@ with st.expander("Where this struggles"):
     st.markdown(
         "Hindi and Hinglish reviews can return the opposite meaning — searching "
         "for *food was cold* may return *food was very good*. About 4% of "
-        "reviews are affected."))
+        "reviews are affected.")

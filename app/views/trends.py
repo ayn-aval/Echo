@@ -134,4 +134,4 @@ with st.expander("How to read this"):
         "- Ranked by **portion of reviews**, not raw counts — some weeks are "
         "simply busier.\n"
         "- Only app versions with 1,000+ reviews are listed.\n"
-        "- Topics under 30 reviews are hidden as too small to trust."))
+        "- Topics under 30 reviews are hidden as too small to trust.")

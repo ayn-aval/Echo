@@ -86,4 +86,3 @@ with st.expander("About this data"):
         f"- Ratings and volume use every review.\n"
         f"- Topics use the **64,280** reviews longer than one word — a review "
         f"saying only \"good\" is not about anything.")
-)
