@@ -1,19 +1,11 @@
 """Overview — what customers are saying, at a glance."""
 
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
 import design
 import plotly.graph_objects as go
 from shared import ALL_REVIEWS, sql, st
 
-design.setup("Overview")
-design.header(
-    "Overview",
-    "Every review Swiggy received on the Google Play Store between January and "
-    "August 2026, and how customers rated the app over that time.")
+design.appbar("Monitor", "Volume and ratings",
+              "How many people are reviewing, how they rate the app, and whether that is moving.")
 
 s = sql(f"""
     SELECT count(*)                                AS reviews,

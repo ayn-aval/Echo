@@ -1,20 +1,12 @@
 """Trends — what is getting worse, and when it started."""
 
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
 import design
 import pandas as pd
 import plotly.graph_objects as go
 from shared import MODEL, sql, st
 
-design.setup("Trends")
-design.header(
-    "What changed",
-    "Compare two periods to see which complaints grew and which faded. Set the "
-    "dividing line to the week a new app version shipped to see what it broke.")
+design.appbar("Understand", "What changed",
+              "Compare two periods to see which complaints grew and which faded. Set the dividing line to a release date to see what it affected.")
 
 series = sql("""
     SELECT date_trunc('week', r.reviewed_at)::date AS week,

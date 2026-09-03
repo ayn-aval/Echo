@@ -1,20 +1,11 @@
 """Themes — what customers talk about, grouped by meaning."""
 
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
 import design
 import plotly.graph_objects as go
 from shared import MODEL, sql, st
 
-design.setup("Topics")
-design.header(
-    "What customers talk about",
-    "Reviews are grouped by what they mean, not the words they use. A complaint "
-    "about the app crashing and one about it closing by itself land in the same "
-    "group, even though they share no words.")
+design.appbar("Understand", "What customers raise",
+              "Every subject customers bring up, grouped by meaning rather than wording, and ranked by how many people raised it.")
 
 themes = sql("""
     SELECT t.theme_id, coalesce(t.display_name, t.label) AS label,

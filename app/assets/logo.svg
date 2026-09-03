@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="164" height="40" viewBox="0 0 164 40" role="img" aria-label="Echo">
+  <rect x="0" y="4" width="32" height="32" rx="9" fill="#2a78d6"/>
+  <circle cx="11.5" cy="20" r="2.6" fill="#ffffff"/>
+  <path d="M17 13.6a9 9 0 0 1 0 12.8" stroke="#ffffff" stroke-width="2.3"
+        stroke-linecap="round" fill="none" opacity="0.95"/>
+  <path d="M21.6 10.2a14 14 0 0 1 0 19.6" stroke="#ffffff" stroke-width="2.3"
+        stroke-linecap="round" fill="none" opacity="0.62"/>
+  <path d="M26.2 7a19 19 0 0 1 0 26" stroke="#ffffff" stroke-width="2.3"
+        stroke-linecap="round" fill="none" opacity="0.32"/>
+  <text x="42" y="27" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif"
+        font-size="22" font-weight="680" letter-spacing="-0.5" fill="#0b0b0b">Echo</text>
+</svg>

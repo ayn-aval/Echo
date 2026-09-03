@@ -10,11 +10,8 @@ import design
 import shared
 from shared import st
 
-design.setup("Search")
-design.header(
-    "Search reviews by meaning",
-    "Describe a problem in your own words. This finds reviews that mean the same "
-    "thing, even when they share no words with what you typed.")
+design.appbar("Understand", "Find reviews",
+              "Describe a problem in your own words and find every review that means the same thing, however it was worded.")
 
 EXAMPLES = ["the app keeps crashing", "my refund never arrived",
             "delivery was later than promised", "I was charged extra"]

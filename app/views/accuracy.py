@@ -1,20 +1,11 @@
 """Results — does this actually work, and how do we know."""
 
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
 import design
 import plotly.graph_objects as go
 from shared import csv, st
 
-design.setup("Results")
-design.header(
-    "Does this actually work?",
-    "Three fair tests, each against simpler methods that were tried first. "
-    "Every number here comes from a script that can be re-run, and the places "
-    "where the results fall short are shown alongside the ones where they do not.")
+design.appbar("About", "How it works",
+              "What this system does, how accurate it is, and where it falls short.")
 
 
 def bars(names, values, colours, suffix="", height=250, xlab=""):
