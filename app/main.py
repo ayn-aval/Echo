@@ -27,6 +27,7 @@ design.boot()
 NAV = {
     "Monitor": [
         st.Page("views/home.py", title="Today", url_path="today", default=True),
+        st.Page("views/alerts.py", title="Alerts", url_path="alerts"),
         st.Page("views/overview.py", title="Volume and ratings", url_path="volume"),
     ],
     "Understand": [

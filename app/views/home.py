@@ -45,6 +45,23 @@ spark = sql(f"""
        {F.where('r')}{F.area_clause('t')}
      GROUP BY 1, 2 ORDER BY 2""")
 
+recent_alerts = sql(f"""
+    SELECT count(*) AS n, max(a.week_start) AS week
+      FROM theme_alerts a
+      JOIN themes t ON t.model = a.model AND t.theme_id = a.theme_id
+     WHERE a.model = 'sbert-domain'
+       AND a.week_start >= (SELECT max(week_start) FROM theme_alerts) - 28
+       {F.area_clause('t')}""").iloc[0]
+if recent_alerts.n:
+    st.markdown(
+        f"<div class='card' style='border-left:3px solid {design.CRITICAL};"
+        f"display:flex;align-items:center;justify-content:space-between;'>"
+        f"<div><span style='font-weight:640;color:{design.INK};'>"
+        f"{recent_alerts.n} volume alert{'s' if recent_alerts.n > 1 else ''}</span>"
+        f"<span style='color:{design.INK_2};'> in the four weeks to "
+        f"{recent_alerts.week:%d %B}</span></div></div>", unsafe_allow_html=True)
+    st.page_link("views/alerts.py", label="Review the alerts")
+
 st.markdown("## Complaints by area")
 
 if areas.empty:

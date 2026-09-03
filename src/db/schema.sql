@@ -135,3 +135,48 @@ CREATE TABLE IF NOT EXISTS saved_views (
     payload    JSONB       NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- ── Phase 8: weekly time series and alerts ──────────────────────────────────
+--
+-- theme_weekly holds one row per topic per COMPLETE week. Partial weeks are
+-- excluded when the table is built (src/analytics/weekly.py), so nothing
+-- downstream has to remember that the newest bucket may be three days long.
+--
+-- `share` is stored alongside `reviews` because a raw count rises whenever total
+-- review volume rises. Without the share a reader cannot tell "more people are
+-- complaining about this" from "more people reviewed this week".
+CREATE TABLE IF NOT EXISTS theme_weekly (
+    model      TEXT        NOT NULL,
+    theme_id   INTEGER     NOT NULL,
+    week_start DATE        NOT NULL,
+    reviews    INTEGER     NOT NULL,
+    unhappy    INTEGER     NOT NULL,      -- rated 1 or 2 stars
+    avg_rating NUMERIC(3,2),
+    share      NUMERIC(7,5) NOT NULL,     -- of that week's themed reviews
+    PRIMARY KEY (model, theme_id, week_start)
+);
+
+CREATE INDEX IF NOT EXISTS ix_theme_weekly_week
+    ON theme_weekly (model, week_start DESC);
+
+-- theme_alerts stores the baseline the verdict was reached against, not just the
+-- verdict. An alert nobody can audit gets blindly followed or blindly ignored.
+CREATE TABLE IF NOT EXISTS theme_alerts (
+    model         TEXT         NOT NULL,
+    theme_id      INTEGER      NOT NULL,
+    week_start    DATE         NOT NULL,
+    kind          TEXT         NOT NULL,   -- 'spike' | 'new'
+    reviews       INTEGER      NOT NULL,
+    baseline_mean NUMERIC(9,3),
+    baseline_sd   NUMERIC(9,3),
+    z             NUMERIC(6,2),
+    share_z       NUMERIC(6,2),            -- same test on share; low means the
+                                           -- week was simply busier overall
+    threshold     NUMERIC(4,2) NOT NULL,
+    baseline_weeks INTEGER     NOT NULL,
+    created_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    PRIMARY KEY (model, theme_id, week_start, kind)
+);
+
+CREATE INDEX IF NOT EXISTS ix_theme_alerts_week
+    ON theme_alerts (model, week_start DESC);

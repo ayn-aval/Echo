@@ -2,7 +2,7 @@
 
 ## Current status
 
-**Phases 0 through 7 complete.**
+**Phases 0 through 8 complete.**
 
 | phase | state |
 |---|---|
@@ -14,7 +14,8 @@
 | 5 — Theme discovery | **done. 110 themes; audit 82.4% vs GloVe's 44.1%** |
 | 6 — Semantic search | **done. 75.77 P@10 two-stage — first system to beat TF-IDF** |
 | 7 — Streamlit dashboard | **done. 5 pages, `streamlit run app/main.py`** |
-| 8 — Trends and alerts | not started |
+| 8 — Trends and alerts | **done. 16 alerts at z>=3; Power BI guide written** |
+| 9 — Write-up and polish | not started |
 
 **Immediate next step:** Phase 6 (FAISS semantic search), or Phase 4b (the
 pair-source ablation, set up but not run — `notebooks/phase4b_ablation_kaggle.ipynb`).
@@ -467,6 +468,74 @@ labelled **"rain / gst / fee" grew from 15 to 83 reviews** across the midpoint
 split, the largest proportional jump on the board. Phase 8's alerting should fire
 on exactly this shape.
 
+## Phase 8 — Trends and alerts
+
+`theme_weekly` (3,342 rows: 110 topics x 31 complete weeks) and `theme_alerts`
+in Postgres. Detection is a z-score against a trailing 8-week mean, kept simple
+on purpose — the user's brief was that a defensible simple method beats an
+unexplainable sophisticated one.
+
+**Partial weeks are dropped at the source** (`src/analytics/weekly.py`), not
+patched downstream. The corpus ends on a Wednesday, so the newest bucket held 3
+days and ~1,095 reviews against a normal ~3,000; a naive weekly rule reports that
+every topic collapsed at once. A second partial week at the start (2026-01-12,
+1 day) was found the same way.
+
+### The threshold is 3.0, and the data says why
+
+110 topics are tested every week, so the multiple-comparison arithmetic decides
+this, not taste. Measured across thresholds:
+
+| threshold | expected from chance | alerts found |
+|---|---|---|
+| z >= 3.0 | 3.4 | **16** |
+| z >= 2.5 | 15.7 | 28 |
+| z >= 2.0 | 57.6 | 46 |
+| z >= 1.5 | 169.0 | 67 |
+
+**At z >= 2 the list would contain fewer alerts than chance alone predicts** — it
+would be entirely noise. At z >= 3 the yield is roughly five times chance.
+
+### Four guards, each for a named failure
+
+- **MIN_REVIEWS = 15.** A topic going 1 -> 4 has z > 3 and means nothing; weekly
+  counts are Poisson-ish and small numbers are mostly noise.
+- **Zero variance.** A flat topic has sd = 0 and z is undefined. Falls back to
+  `sd = sqrt(mean)`, the Poisson standard deviation — the right scale for counts,
+  rather than an arbitrary epsilon.
+- **EFFECT = 1.5x the baseline mean.** Statistically unusual and operationally
+  trivial are different things.
+- **share_z.** The same test on the topic's *share* of the week, reported beside
+  the count. Two of the 16 alerts are marked "share flat — the week was simply
+  busier", which is the volume confound caught rather than hidden.
+
+### Four failure modes no guard fixes — state them, do not pretend
+
+- **Slow burn is invisible.** A topic growing 10% a week drags its own trailing
+  mean up and never trips. This catches jumps; the Trends screen catches trends.
+- **Counts are right-skewed**, so a positive z overstates its rarity. "1 in 740"
+  is an order of magnitude, not a probability.
+- **Weeks are not independent.** A two-week incident raises the baseline and
+  suppresses later alerts about the same problem.
+- **No seasonality model.** A festival week lifts everything and the rule blames
+  the topics rather than the calendar.
+
+### What it found
+
+16 alerts across 9 weeks. **Six topics fired in the single week of 2026-07-20**,
+including "Poor customer support" at z = 19.73 (59 reviews against a baseline of
+19.6 +/- 2.0). Several topics firing together is usually one incident rather than
+several problems, and the Alerts screen says so rather than listing six rows.
+
+### Also delivered
+
+`docs/POWERBI.md` — connection steps, model advice, a four-visual executive
+layout, and **which visuals mislead on this data**: pie of topic share (110
+slices, and share is of the filtered subset), dual-axis count-vs-rating, stacked
+area over a changing topic set, word clouds (they rank by raw frequency and
+return "order, app, food" — exactly what this project exists to look past), and
+week-on-week percentage change without a count floor.
+
 ## Decisions made
 
 | decision | why |
@@ -520,22 +589,20 @@ on exactly this shape.
 
 ## Exact next step
 
-**Phase 7 is complete.** Next is **Phase 8 — trends and alerts**: weekly theme
-volume stored in Postgres, emerging-theme detection by z-score against a trailing
-mean, and alerts surfaced on the dashboard. The Trends page already computes the
-movers table in memory, so Phase 8 is largely persisting it and adding a
-threshold rule. The late-April volume dip and the "rain / gst / fee" theme are
-the two obvious test cases.
+**Phase 8 is complete.** Next is **Phase 9 — write-up and polish**: the README
+with the problem, a dashboard screenshot, the results tables, how to run it, and
+honest limitations. Material is in `results/phase{3,4,5,6}_notes.md`.
 
 Still outstanding:
 - **Phase 4b**, the pair-source ablation — `notebooks/phase4b_ablation_kaggle.ipynb`,
   ~20 min on Kaggle, never run.
 - **~200 more theme-audit judgements** would settle sbert-domain vs bert-mean
   (currently p=0.56).
-- The README — material in `results/phase{3,4,5,6}_notes.md`. Phase 9.
 - 20 unjudged pooled candidates on one query; 24 of 50 eval queries never labelled.
 - `CLAUDE.md` and `PROJECT_PLAN.md` still say Colab for training; runs use Kaggle.
   Ask before editing — they are portfolio documents.
+- The user asked whether generic-praise topics should be hidden entirely from the
+  dashboard, and whether to add business-impact estimates. Both need their input.
 
 ## Commands
 
@@ -561,5 +628,9 @@ python -m src.search.query "app keeps crashing"  # semantic search
 python -m src.search.rerank "refund not received"   # two-stage search
 python -m eval.build_pool --augment --with-rerank    # pool the reranker BEFORE scoring it
 python -m eval.benchmark_search  # accuracy + p50/p95 latency
-streamlit run app/main.py       # Phase 7: the dashboard (5 pages)
+streamlit run app/main.py       # the dashboard
+python -m src.clustering.theme_names       # readable topic names
+python -m src.clustering.theme_categories  # roll topics into business areas
+python -m src.analytics.weekly             # Phase 8: weekly series (drops partial weeks)
+python -m src.analytics.alerts --explain   # z-score alerts with their baselines
 ```
