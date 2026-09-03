@@ -106,19 +106,6 @@ CSS = f"""
                 padding-left:34px; border-left:1px solid rgba(255,255,255,.16); }}
   .hero .side b {{ color:#ffffff; font-weight:640; {NUM} }}
 
-  /* ── tiles ───────────────────────────────────────────────────────────── */
-  .tiles {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
-           gap:14px; margin:.1rem 0 1.5rem; }}
-  .tile {{ background:{SURFACE}; border:1px solid {LINE}; border-radius:14px;
-          padding:17px 19px 15px; box-shadow:{SHADOW}; }}
-  .tile.lead {{ border-color:rgba(42,120,214,.32); box-shadow:{SHADOW_2}; }}
-  .tile .k {{ color:{MUTED}; font-size:.71rem; font-weight:700;
-             text-transform:uppercase; letter-spacing:.08em; }}
-  .tile .v {{ color:{INK}; font-size:1.95rem; font-weight:690;
-             letter-spacing:-0.035em; line-height:1.15; margin-top:9px; {NUM} }}
-  .tile.lead .v {{ font-size:2.4rem; color:{BLUE}; }}
-  .tile .n {{ color:{INK_2}; font-size:.79rem; margin-top:5px; line-height:1.45; }}
-
   .card {{ background:{SURFACE}; border:1px solid {LINE}; border-radius:14px;
           padding:19px 21px; margin-bottom:13px; box-shadow:{SHADOW}; }}
   .card h4 {{ margin:0 0 7px; font-size:1rem; font-weight:660; color:{INK}; }}
@@ -168,7 +155,6 @@ CSS = f"""
   .area-tag {{ margin-left:9px; padding:2px 9px; border-radius:6px;
               background:{SUNK}; border:1px solid {LINE}; color:{INK_2};
               font-size:.7rem; font-weight:620; vertical-align:middle; }}
-  .chip {{ padding:3px 9px; border-radius:7px; font-size:.76rem; font-weight:700; {NUM} }}
 
   /* ── brand and sidebar ───────────────────────────────────────────────── */
   section[data-testid="stSidebar"] {{ background:{SURFACE};
@@ -277,15 +263,6 @@ def hero(eyebrow: str, headline: str, value: str, unit: str, side: str = "") -> 
         + "</div></div>", unsafe_allow_html=True)
 
 
-def tiles(items, lead: int | None = None) -> None:
-    """items: (label, value, note). `lead` indexes the one that matters most."""
-    cells = "".join(
-        f"<div class='tile{' lead' if i == lead else ''}'>"
-        f"<div class='k'>{k}</div><div class='v'>{v}</div>"
-        f"<div class='n'>{n}</div></div>" for i, (k, v, n) in enumerate(items))
-    st.markdown(f"<div class='tiles'>{cells}</div>", unsafe_allow_html=True)
-
-
 def rank_rows(rows) -> None:
     """A ranked comparison as HTML, not a chart.
 
@@ -331,41 +308,3 @@ def style(fig, height=320, legend=False, ylab="", xlab=""):
     return fig
 
 
-def rating_chip(rating: float) -> str:
-    """A star rating as a coloured chip. Colour repeats what the number says and
-    never replaces it, and the unit is shown so 2.1 cannot be read as anything
-    other than 2.1 stars out of 5."""
-    if rating <= 2.0:
-        bg, fg = "rgba(208,59,59,.11)", "#a82f2f"
-    elif rating < 3.5:
-        bg, fg = "rgba(224,138,46,.15)", "#8f5613"
-    else:
-        bg, fg = "rgba(12,163,12,.10)", "#0a6f0a"
-    return (f"<span class='chip' style='background:{bg};color:{fg};'>"
-            f"{rating:.1f} stars</span>")
-
-
-def trend(delta: float, text: str) -> str:
-    """Direction word plus the number. Never an arrow glyph alone."""
-    if delta > 0.02:
-        return f"<span style='color:#0a6f0a;font-weight:640;'>Up</span> {text}"
-    if delta < -0.02:
-        return f"<span style='color:#a82f2f;font-weight:640;'>Down</span> {text}"
-    return f"<span style='color:{MUTED};font-weight:640;'>Flat</span> {text}"
-
-
-def sparkline(x, y, colour=None):
-    """A bare trend line: no axes, no grid, no labels."""
-    import plotly.graph_objects as go
-    fig = go.Figure(go.Scatter(
-        x=list(x), y=list(y), mode="lines",
-        line=dict(color=colour or CRITICAL, width=1.9, shape="spline"),
-        fill="tozeroy", fillcolor="rgba(208,59,59,0.08)",
-        hovertemplate="%{x|%d %b}: %{y:,} unhappy<extra></extra>"))
-    fig.update_layout(height=52, margin=dict(l=0, r=0, t=4, b=0),
-                      paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                      showlegend=False,
-                      xaxis=dict(visible=False), yaxis=dict(visible=False),
-                      hoverlabel=dict(bgcolor=SURFACE, bordercolor=AXIS,
-                                      font=dict(family=FONT, size=11, color=INK)))
-    return fig

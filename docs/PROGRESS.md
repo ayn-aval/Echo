@@ -2,7 +2,7 @@
 
 ## Current status
 
-**Phases 0 through 8 complete.**
+**Phases 0 through 9 complete.**
 
 | phase | state |
 |---|---|
@@ -15,14 +15,16 @@
 | 6 — Semantic search | **done. 75.77 P@10 two-stage — first system to beat TF-IDF** |
 | 7 — Streamlit dashboard | **done. 7 screens, redesigned; `streamlit run app/main.py`** |
 | 8 — Trends and alerts | **done. 16 alerts at z>=3; Power BI guide written** |
-| 9 — Write-up and polish | not started |
+| 9 — Write-up and polish | **done. README, cleanup, traceability check** |
 
-**Immediate next step:** Phase 9 — the README write-up. Screenshots for it are
-already generated: `python -m eval.shoot_app` writes all seven screens to
-`results/screens/`. Material is in `results/phase{3,4,5,6}_notes.md`.
+**Immediate next step:** nothing is blocking. The highest-value remaining work is
+**Phase 4b** (`notebooks/phase4b_ablation_kaggle.ipynb`, ~20 min on Kaggle), because
+it settles the circularity question the README raises and leaves open — mined pairs
+required TF-IDF to agree, so the model may have partly learned to imitate the system
+it is being compared against.
 
-Phase 4b (the pair-source ablation) is set up but never run —
-`notebooks/phase4b_ablation_kaggle.ipynb`, ~20 min on Kaggle.
+After that: deployment (nobody can currently run this without a local Postgres), and
+~200 more theme-audit judgements to separate sbert-domain from bert-mean.
 
 ---
 
@@ -579,6 +581,31 @@ chart and `6.5 in 10` in the tile directly below it for the same quantity.
 Verified: `eval/check_app.py` 7/7; `theme_names --check` 110/110; Delivery's
 figures cross-checked against a direct SQL count and unchanged (2,088 unhappy of
 3,091); every screen photographed and looked at.
+
+## Phase 9 — the write-up
+
+`README.md`, written for a hiring manager with two minutes: the business problem
+first, a screenshot second, the model third. Every claim in it is checked by a
+script rather than trusted.
+
+**`eval/check_readme.py` is the piece worth keeping.** It reads 33 figures out of
+the CSVs in `results/` and asserts each appears verbatim in the README, so a later
+re-run of an eval script cannot leave a stale number sitting in the write-up. It
+caught two things immediately: an audit figure where Python's `format()` rounds
+82.35 down to 82.3 while a person computing 28/34 correctly writes 82.4 (fixed with
+`Decimal(ROUND_HALF_UP)`), and an ablation score the README only ever quotes as a
+delta.
+
+It also caught a number I had invented. The README first said encoding takes
+"roughly 6 minutes"; nothing had measured that. Measured properly — 2,048 texts
+after warm-up — it is **184 texts/second on `mps`**, so about 4 minutes for 45,864.
+
+Cleanup done in the same pass: six dead functions removed (`tiles`, `rating_chip`,
+`trend`, `sparkline` in `app/design.py`, superseded by `hero`/`rank_rows`; `page`
+and `corpus_note` in `app/shared.py`, superseded by `design.appbar`) along with
+their orphaned CSS, plus `load_all` in `eval/sts_data.py`. `requirements.txt` is now
+fully pinned, including `numpy` — imported directly, previously arriving only via
+pandas — and `playwright==1.62.0`.
 
 ## Decisions made
 

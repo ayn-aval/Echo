@@ -34,10 +34,6 @@ def load_sts(name: str):
             [float(s) for s in ds["score"]])
 
 
-def load_all():
-    return {name: load_sts(name) for name in DATASETS}
-
-
 if __name__ == "__main__":
     total = 0
     for name in DATASETS:

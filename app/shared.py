@@ -87,19 +87,3 @@ def get_search():
 def get_reranker():
     from src.search.rerank import MODEL as CROSS_MODEL, get_cross_encoder
     return get_cross_encoder(CROSS_MODEL)
-
-
-def page(title: str, icon: str, subtitle: str = "") -> None:
-    """Consistent page chrome, so each page file starts with one line."""
-    st.set_page_config(page_title=f"Echo — {title}", page_icon=icon,
-                       layout="wide")
-    st.title(f"{icon}  {title}")
-    if subtitle:
-        st.caption(subtitle)
-
-
-def corpus_note() -> None:
-    """The honest headline, repeated wherever theme counts appear."""
-    st.caption("100,000 reviews collected · 64,280 with enough text to cluster. "
-               "Rating and volume figures use all 100,000; theme figures use the "
-               "64,280.")

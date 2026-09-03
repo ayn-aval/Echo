@@ -1,9 +1,12 @@
+# Every version is pinned to what this project was actually built and measured
+# with, so the numbers in README.md are reproducible. Python 3.11.
+#
 # Phase 1 — data collection
-# Grows per phase; pinned properly in Phase 9.
 google-play-scraper==1.2.7
 psycopg2-binary==2.9.10
 python-dotenv==1.0.1
 pandas==2.2.3
+numpy==2.4.6          # imported directly, not just via pandas
 tqdm==4.67.1
 matplotlib==3.11.1
 
@@ -30,4 +33,4 @@ faiss-cpu==1.15.0
 # Verification only, not needed to run the app: eval/shoot_app.py drives real
 # Chrome to photograph every dashboard screen, because no automated test can
 # tell that a screen looks wrong. Uses the installed Chrome, downloads nothing.
-playwright
+playwright==1.62.0
