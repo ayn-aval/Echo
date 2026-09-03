@@ -17,6 +17,7 @@ actually separates a card from the page.
 
 from pathlib import Path
 
+import plotly.graph_objects as go
 import streamlit as st
 
 ASSETS = Path(__file__).resolve().parent / "assets"
@@ -279,6 +280,65 @@ def rank_rows(rows) -> None:
         f"<div class='val'>{value}<small>{note}</small></div></div>"
         for label, frac, value, note, colour in rows)
     st.markdown(f"<div class='rank-list'>{body}</div>", unsafe_allow_html=True)
+
+
+def click_bars(rows, key: str, selected=None, height=None, xlab=""):
+    """A ranked bar chart you can click. Returns the clicked label, or None.
+
+    rows: (label, value, colour), largest first.
+
+    This is the component that lets controls be deleted rather than added. Picking
+    a topic used to mean finding it in a 110-item dropdown on one screen and then
+    again in a different multiselect on another; here the thing you want is
+    already on screen, and you click it.
+
+    Three details, each of which cost a debugging round to find:
+
+    **Never set `text=` on the trace.** Bar labels set that way silently break
+    Streamlit's click selection — the hover tooltip still resolves the right bar,
+    but the click returns an empty selection, inside or outside the bar. Bisected
+    against a minimal app. The values are drawn as layout annotations instead,
+    which look identical and leave hit-testing alone.
+
+    **Plotly draws the first horizontal bar at the bottom**, so rows are reversed
+    for display; the clicked label comes back from the event rather than being
+    recovered from an index, so the reversal cannot cause an off-by-one.
+
+    **A selection has to look like one.** Everything unselected drops to a quarter
+    opacity, so it is obvious the view is filtered rather than simply short.
+    """
+    labels = [r[0] for r in rows]
+    shown = rows[::-1]
+    dim = [0.25 if selected and lab != selected else 1.0 for lab, _, _ in shown]
+
+    fig = go.Figure(go.Bar(
+        x=[v for _, v, _ in shown], y=[lab for lab, _, _ in shown],
+        orientation="h", marker_color=[c for _, _, c in shown],
+        marker_opacity=dim, marker_line_width=0,
+        hovertemplate="%{y}<br>%{x:,}<extra></extra>"))
+    fig.update_traces(marker_cornerradius=5)
+    fig.update_layout(clickmode="event+select")
+
+    biggest = max((v for _, v, _ in rows), default=1) or 1
+    for lab, value, _ in shown:
+        fig.add_annotation(
+            x=value, y=lab, text=f"{value:,}", showarrow=False,
+            xanchor="left", xshift=7,
+            font=dict(color=INK_2, size=12),
+            opacity=0.35 if selected and lab != selected else 1.0)
+    # Room at the right for the annotation, which sits outside the bar.
+    fig.update_xaxes(range=[0, biggest * 1.12])
+
+    event = st.plotly_chart(
+        style(fig, height=height or 40 * len(rows) + 90, xlab=xlab),
+        width="stretch", key=key, on_select="rerun", selection_mode="points",
+        config={"displayModeBar": False})
+
+    points = (event or {}).get("selection", {}).get("points", [])
+    if not points:
+        return None
+    label = points[0].get("label") or points[0].get("y")
+    return label if label in labels else None
 
 
 def note(text: str) -> None:

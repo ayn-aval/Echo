@@ -28,15 +28,11 @@ BASE = "http://localhost:8501"
 OUT = Path(__file__).resolve().parents[1] / "results" / "screens"
 
 # url_path -> filename. The default page is served at "/", not at its url_path,
-# so requesting /today returns Streamlit's "Page not found" — that is normal
+# so requesting /overview returns Streamlit's "Page not found" — that is normal
 # behaviour for a page registered with default=True, not a routing bug.
 SCREENS = {
-    "": "today",
-    "alerts": "alerts",
-    "volume": "ratings",
-    "issues": "topics",
-    "changes": "trends",
-    "find": "search",
+    "": "overview",
+    "explore": "explore",
     "how": "how-it-works",
 }
 

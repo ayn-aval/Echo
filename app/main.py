@@ -4,8 +4,8 @@
 
 The application shell: page config, stylesheet, brand, and navigation. Individual
 screens live in app/views/ and are registered below rather than discovered from a
-pages/ folder, so their titles, grouping and order are chosen here instead of
-being derived from filenames.
+pages/ folder, so their titles and order are chosen here instead of being derived
+from filenames.
 
 app/label.py and app/audit.py stay outside this navigation on purpose. They are
 internal annotation tools that write to the database, and are run directly.
@@ -24,23 +24,15 @@ st.set_page_config(page_title="Echo — customer feedback intelligence",
                    initial_sidebar_state="expanded")
 design.boot()
 
-NAV = {
-    "Monitor": [
-        st.Page("views/home.py", title="Today", url_path="today", default=True),
-        st.Page("views/alerts.py", title="Alerts", url_path="alerts"),
-        st.Page("views/overview.py", title="Ratings", url_path="volume"),
-    ],
-    "Understand": [
-        st.Page("views/issues.py", title="Topics", url_path="issues"),
-        st.Page("views/trends.py", title="Trends", url_path="changes"),
-        st.Page("views/search.py", title="Search", url_path="find"),
-    ],
-    "About": [
-        st.Page("views/accuracy.py", title="How it works", url_path="how"),
-    ],
-}
+# Three screens, ungrouped. Seven needed Monitor/Understand/About headings to be
+# navigable; three do not, and the headings were themselves something to read.
+PAGES = [
+    st.Page("views/home.py", title="Overview", url_path="overview", default=True),
+    st.Page("views/issues.py", title="Explore", url_path="explore"),
+    st.Page("views/accuracy.py", title="How it works", url_path="how"),
+]
 
-page = st.navigation(NAV, position="sidebar", expanded=True)
+page = st.navigation(PAGES, position="sidebar", expanded=True)
 
 # One filter bar for the whole app: a reader sets their area and period once and
 # every screen answers for that slice. Stored in session_state so it survives

@@ -7,7 +7,7 @@ business team which problems are biggest, which are growing, and which spiked la
 sentence-embedding model underneath is trained from scratch, reproducing
 [Sentence-BERT (Reimers & Gurevych, 2019)](https://arxiv.org/abs/1908.10084).
 
-![The Today screen](results/screens/today.png)
+![The Overview screen](results/screens/overview.png)
 
 ---
 
@@ -26,11 +26,12 @@ the other two. That is the gap this project closes.
 
 | Question a growth team asks | Where Echo answers it |
 |---|---|
-| What is hurting us most right now? | **Today** — one ranked list, with a real customer quote per item |
-| What are customers actually talking about? | **Topics** — 110 themes discovered from the reviews themselves |
-| What is getting worse? | **Trends** — share-of-conversation shifts between any two periods |
-| Did something break last week? | **Alerts** — volume spikes against each topic's own normal range |
-| "What do people say about refunds?" | **Search** — finds paraphrases, not just the word *refund* |
+| What is hurting us most right now? | **Overview** — a ranked list, each with a real customer quote |
+| Which part of the business is worst? | **Overview** — click any area to focus the whole screen on it |
+| Did something break last week? | **Overview** — volume spikes against each topic's own normal range |
+| What are customers actually talking about? | **Explore** — 110 topics found in the reviews themselves |
+| Is this one getting worse? | **Explore** — click a topic for its week-by-week history and its reviews |
+| "What do people say about refunds?" | **Explore** — search finds paraphrases, not just the word *refund* |
 
 Two findings the system surfaced that keyword counting would not have:
 
@@ -74,7 +75,7 @@ flowchart LR
     E --> B
     B --> G["weekly series<br/>+ z-score alerts"]
     G --> B
-    B --> H["Streamlit dashboard<br/>7 screens"]
+    B --> H["Streamlit dashboard<br/>3 screens"]
     F --> H
 ```
 
@@ -85,6 +86,8 @@ Four stages, each measured before the next was built:
    pairs, then adapted to Swiggy's own language with `MultipleNegativesRankingLoss`.
 3. **Derive** — cluster the corpus into themes; build a search index; detect weekly spikes.
 4. **Serve** — a Streamlit dashboard for a business team, not for a data scientist.
+   Three screens, and the charts are clickable: selecting a bar filters the screen
+   rather than opening a dropdown, so every interaction added removes a control.
 
 ---
 
@@ -429,7 +432,7 @@ src/training/     siamese NLI training (raw PyTorch), pair mining, domain adapta
 src/analytics/    weekly series, spike detection
 src/db/           connection, schema, init
 src/utils/        device detection (mps → cuda → cpu), config
-app/              Streamlit dashboard — 7 screens
+app/              Streamlit dashboard — 3 screens
 eval/             every reported metric comes from here
 results/          metrics as CSV, plots and screenshots as PNG
 notebooks/        GPU training notebooks
