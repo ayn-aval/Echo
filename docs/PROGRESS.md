@@ -2,7 +2,7 @@
 
 ## Current status
 
-**Phases 0, 1, 2, 3, 4, 5 and 6 complete.**
+**Phases 0 through 7 complete.**
 
 | phase | state |
 |---|---|
@@ -13,7 +13,8 @@
 | 4 — Domain adaptation | **done. Precision@10 45.77 -> 61.15, STS 72.17 -> 74.54** |
 | 5 — Theme discovery | **done. 110 themes; audit 82.4% vs GloVe's 44.1%** |
 | 6 — Semantic search | **done. 75.77 P@10 two-stage — first system to beat TF-IDF** |
-| 7 — Streamlit dashboard | not started |
+| 7 — Streamlit dashboard | **done. 5 pages, `streamlit run app/main.py`** |
+| 8 — Trends and alerts | not started |
 
 **Immediate next step:** Phase 6 (FAISS semantic search), or Phase 4b (the
 pair-source ablation, set up but not run — `notebooks/phase4b_ablation_kaggle.ipynb`).
@@ -401,6 +402,71 @@ single-threaded (rejected — it would understate the latency being measured);
   coverage, so its 53.08 is a mild underestimate.
 - Latency is single-query on an idle Mac — no concurrency or cold start.
 
+## Phase 7 — The Streamlit dashboard
+
+`streamlit run app/main.py`. Five pages, no new analysis — presentation of what
+Phases 1-6 produced, plus the caching that makes it usable.
+
+```
+app/main.py               landing page; Streamlit auto-discovers app/pages/*.py
+app/shared.py             sys.path fix, faiss-before-sklearn, both caches
+app/pages/1_Overview.py   100,000 reviews, ratings, volume over time
+app/pages/2_Themes.py     110 themes ranked, drill-down into any theme
+app/pages/3_Trends.py     weekly volume, date + version filters, movers table
+app/pages/4_Search.py     semantic search, single vs two-stage toggle
+app/pages/5_Model_comparison.py   every results/ table with its caveats
+```
+
+`app/label.py` and `app/audit.py` stay **outside** `pages/` on purpose — they are
+internal annotation tools that write to the database and have no place in a
+dashboard someone is reading.
+
+### The caching rule, since it is the difference between usable and not
+
+Streamlit re-runs the entire script on every interaction, so anything expensive at
+module level runs again on each keystroke.
+
+- **`@st.cache_data`** memoises a returned *value*; Streamlit serialises it and
+  hands each caller its own copy. For DataFrames from SQL and CSV.
+- **`@st.cache_resource`** holds one *live object*, shared, never copied or
+  serialised. For the encoder, the FAISS index, the cross-encoder.
+
+Using `cache_data` on a model tries to serialise it; using `cache_resource` on a
+DataFrame lets one page mutate what another sees.
+
+**`get_search()` also runs one throwaway encode inside the cached call.** The
+first query on MPS pays kernel compilation — measured at 1,944 ms against a warm
+24 ms — and without the warm-up that cost is displayed to the user as the query
+time. Same warm-up the Phase 6 benchmark discards.
+
+### Correctness points enforced on the pages
+
+- **Overview uses all 100,000 rows, never the 64,280 themed subset.** Filtering
+  short reviews raises the 1-star share, so a rating chart on the subset is
+  simply untrue. `shared.ALL_REVIEWS` / `shared.THEMED_REVIEWS` make the choice
+  explicit, and `shared.corpus_note()` states both numbers wherever theme counts
+  appear.
+- **"Days covered" is `count(DISTINCT reviewed_at::date)`, not max minus min** —
+  the counted version is what would expose a collection gap. Both give 221, so
+  there are none. (PROGRESS previously said 220; 221 is the inclusive count.)
+- **Trends ranks movers by share of reviews, not raw count.** Overall volume
+  moves week to week, so a theme can gain reviews without becoming more of a
+  problem. Themes under 30 reviews across both periods are excluded as too noisy.
+- **The version filter offers only versions with 1,000+ reviews** — 24 of 285,
+  covering 90.7%. Most versions have a single review from someone on an ancient
+  build; a dropdown of 285 is unusable. 10,925 reviews have no version at all.
+- **Every caveat from the phase notes is on the Model comparison page**, not in a
+  footnote: noise % ranking the worst model first, silhouette not being
+  comparable across models, sbert-domain vs bert-mean not being significant, and
+  the GloVe baseline being 7.4 points below the paper's.
+
+### Found while building
+
+The Trends movers table immediately surfaced a real emergent complaint: a theme
+labelled **"rain / gst / fee" grew from 15 to 83 reviews** across the midpoint
+split, the largest proportional jump on the board. Phase 8's alerting should fire
+on exactly this shape.
+
 ## Decisions made
 
 | decision | why |
@@ -420,6 +486,8 @@ single-threaded (rejected — it would understate the latency being measured);
 | Standalone `hdbscan`, not sklearn's | it compiled cleanly on Apple Silicon, so no substitution from the stated stack was needed |
 | Exact FAISS index in production, IVF measured only | at 45,864 vectors ANN saves 1.1 ms and costs 8.07 Precision@10 |
 | Two-stage rerank kept despite 8.3x latency | +14.62 Precision@10 and still 71 ms p50, comfortably interactive |
+| `app/pages/` auto-discovery over `st.navigation` | simplest thing that works for five pages; the tradeoff is less control over sidebar titles |
+| Dashboard shows `sbert-domain` themes only | model switching belongs on the comparison page, not scattered through the product pages |
 
 ## Known rough edges
 
@@ -452,22 +520,22 @@ single-threaded (rejected — it would understate the latency being measured);
 
 ## Exact next step
 
-**Phase 6 is complete.** The obvious next step is **Phase 7 — the Streamlit
-dashboard**, built page by page: Overview, Themes, Trends, Search, Model
-comparison. Everything it needs now exists: themes and assignments in Postgres,
-a FAISS index, and `src.search.query.search()` / `src.search.rerank.search_reranked()`
-ready to wrap in `@st.cache_resource`.
+**Phase 7 is complete.** Next is **Phase 8 — trends and alerts**: weekly theme
+volume stored in Postgres, emerging-theme detection by z-score against a trailing
+mean, and alerts surfaced on the dashboard. The Trends page already computes the
+movers table in memory, so Phase 8 is largely persisting it and adding a
+threshold rule. The late-April volume dip and the "rain / gst / fee" theme are
+the two obvious test cases.
 
 Still outstanding:
 - **Phase 4b**, the pair-source ablation — `notebooks/phase4b_ablation_kaggle.ipynb`,
   ~20 min on Kaggle, never run.
-- **~200 more theme-audit judgements** would settle whether `sbert-domain` beats
-  `bert-mean` on theme quality (currently p=0.56, not significant).
-- The honest README paragraph — material in `results/phase{3,4,5,6}_notes.md`.
-- 20 unjudged pooled candidates on *"my Instamart order had a problem"*; 24 of
-  the 50 evaluation queries never labelled.
-- `CLAUDE.md` and `PROJECT_PLAN.md` still say Colab for training; actual runs use
-  Kaggle. Ask before editing — they are portfolio documents.
+- **~200 more theme-audit judgements** would settle sbert-domain vs bert-mean
+  (currently p=0.56).
+- The README — material in `results/phase{3,4,5,6}_notes.md`. Phase 9.
+- 20 unjudged pooled candidates on one query; 24 of 50 eval queries never labelled.
+- `CLAUDE.md` and `PROJECT_PLAN.md` still say Colab for training; runs use Kaggle.
+  Ask before editing — they are portfolio documents.
 
 ## Commands
 
@@ -493,4 +561,5 @@ python -m src.search.query "app keeps crashing"  # semantic search
 python -m src.search.rerank "refund not received"   # two-stage search
 python -m eval.build_pool --augment --with-rerank    # pool the reranker BEFORE scoring it
 python -m eval.benchmark_search  # accuracy + p50/p95 latency
+streamlit run app/main.py       # Phase 7: the dashboard (5 pages)
 ```
