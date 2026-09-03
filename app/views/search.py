@@ -10,8 +10,7 @@ import design
 import shared
 from shared import st
 
-design.appbar("Understand", "Find reviews",
-              "Describe a problem in your own words and find every review that means the same thing, however it was worded.")
+design.appbar("Understand", "Find reviews")
 
 EXAMPLES = ["the app keeps crashing", "my refund never arrived",
             "delivery was later than promised", "I was charged extra"]

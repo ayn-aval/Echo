@@ -41,9 +41,11 @@ NAV = {
 
 page = st.navigation(NAV, position="sidebar", expanded=True)
 
-with st.sidebar:
-    st.markdown(
-        f"<div class='sidenote'>Swiggy · Google Play<br>"
-        f"100,000 reviews to 26 August 2026</div>", unsafe_allow_html=True)
+# One filter bar for the whole app: a reader sets their area and period once and
+# every screen answers for that slice. Stored in session_state so it survives
+# navigation, and nameable so it survives the browser closing.
+import filters  # noqa: E402  (after boot, so the stylesheet is already applied)
+
+st.session_state["filters"] = filters.bar()
 
 page.run()

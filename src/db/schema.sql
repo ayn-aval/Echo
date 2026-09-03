@@ -125,3 +125,13 @@ CREATE TABLE IF NOT EXISTS theme_audit (
 -- machine label stays in themes.label as the evidence; display_name is what a
 -- reader sees. NULL means "no curated name yet" and the machine label is shown.
 ALTER TABLE themes ADD COLUMN IF NOT EXISTS display_name TEXT;
+
+-- Phase 7: business area a topic rolls up to (src/clustering/theme_categories.py).
+ALTER TABLE themes ADD COLUMN IF NOT EXISTS category TEXT;
+
+-- Phase 7: a named filter combination a team member can return to.
+CREATE TABLE IF NOT EXISTS saved_views (
+    name       TEXT        PRIMARY KEY,
+    payload    JSONB       NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

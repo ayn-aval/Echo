@@ -4,8 +4,7 @@ import design
 import plotly.graph_objects as go
 from shared import csv, st
 
-design.appbar("About", "How it works",
-              "What this system does, how accurate it is, and where it falls short.")
+design.appbar("About", "How it works")
 
 
 def bars(names, values, colours, suffix="", height=250, xlab=""):

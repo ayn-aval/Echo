@@ -4,8 +4,7 @@ import design
 import plotly.graph_objects as go
 from shared import ALL_REVIEWS, sql, st
 
-design.appbar("Monitor", "Volume and ratings",
-              "How many people are reviewing, how they rate the app, and whether that is moving.")
+design.appbar("Monitor", "Volume and ratings")
 
 s = sql(f"""
     SELECT count(*)                                AS reviews,

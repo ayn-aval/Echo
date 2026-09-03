@@ -129,6 +129,25 @@ CSS = f"""
   .b-good {{ background:rgba(12,163,12,.10); color:#0a6f0a; }}
   .b-flat {{ background:rgba(11,11,11,.06); color:{INK_2}; }}
 
+  /* ── business area cards ─────────────────────────────────────────────── */
+  .area {{ background:{SURFACE}; border:1px solid {LINE}; border-radius:12px;
+          padding:16px 18px 10px; }}
+  .area-top {{ display:flex; align-items:center; justify-content:space-between;
+              gap:10px; }}
+  .area-name {{ font-size:.95rem; font-weight:640; color:{INK}; }}
+  .area-num {{ font-size:1.9rem; font-weight:680; letter-spacing:-0.03em;
+              color:{INK}; line-height:1.15; margin-top:10px; }}
+  .area-sub {{ color:{MUTED}; font-size:.78rem; margin-top:2px; }}
+  .area-tag {{ margin-left:8px; padding:2px 8px; border-radius:6px;
+              background:{PLANE}; border:1px solid {LINE}; color:{MUTED};
+              font-size:.7rem; font-weight:600; }}
+  .chip {{ padding:3px 8px; border-radius:6px; font-size:.76rem; font-weight:680; }}
+  .filter-head {{ margin:12px 14px 2px; color:{MUTED}; font-size:.72rem;
+                 font-weight:700; letter-spacing:.09em; text-transform:uppercase; }}
+  section[data-testid="stSidebar"] .stSelectbox label,
+  section[data-testid="stSidebar"] .stMultiSelect label {{ font-size:.8rem;
+      font-weight:560; color:{INK_2}; }}
+
   div[data-testid="stDataFrame"] {{ border:1px solid {LINE}; border-radius:10px; }}
   div[data-testid="stExpander"] {{ border:1px solid {LINE}; border-radius:10px;
                                    background:{SURFACE}; }}
@@ -212,4 +231,43 @@ def style(fig, height=320, legend=False, ylab="", xlab=""):
                 title_font=dict(color=MUTED, size=11.5))
     fig.update_xaxes(**axis, showgrid=False, title_text=xlab)
     fig.update_yaxes(**axis, showgrid=True, title_text=ylab)
+    return fig
+
+
+def rating_chip(rating: float) -> str:
+    """A star rating as a coloured chip. Colour carries the same message as the
+    number, never on its own — the number is always shown beside it."""
+    if rating <= 2.0:
+        bg, fg = "rgba(208,59,59,.11)", "#a82f2f"
+    elif rating < 3.5:
+        bg, fg = "rgba(224,138,46,.14)", "#8f5613"
+    else:
+        bg, fg = "rgba(12,163,12,.10)", "#0a6f0a"
+    return (f"<span class='chip' style='background:{bg};color:{fg};'>"
+            f"{rating:.1f}</span>")
+
+
+def trend(delta: float, text: str) -> str:
+    """Direction word plus the number. Never an arrow glyph alone."""
+    if delta > 0.02:
+        return f"<span style='color:#0a6f0a;font-weight:600;'>Up</span> {text}"
+    if delta < -0.02:
+        return f"<span style='color:#a82f2f;font-weight:600;'>Down</span> {text}"
+    return f"<span style='color:{MUTED};font-weight:600;'>Flat</span> {text}"
+
+
+def sparkline(x, y, colour=None):
+    """A bare trend line inside a card: no axes, no grid, no labels."""
+    import plotly.graph_objects as go
+    fig = go.Figure(go.Scatter(
+        x=list(x), y=list(y), mode="lines",
+        line=dict(color=colour or CRITICAL, width=1.8),
+        fill="tozeroy", fillcolor="rgba(208,59,59,0.07)",
+        hovertemplate="%{x|%d %b}: %{y:,} unhappy<extra></extra>"))
+    fig.update_layout(height=54, margin=dict(l=0, r=0, t=4, b=0),
+                      paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                      showlegend=False,
+                      xaxis=dict(visible=False), yaxis=dict(visible=False),
+                      hoverlabel=dict(bgcolor=SURFACE, bordercolor=AXIS,
+                                      font=dict(family=FONT, size=11, color=INK)))
     return fig

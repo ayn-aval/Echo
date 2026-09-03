@@ -4,11 +4,13 @@ import design
 import plotly.graph_objects as go
 from shared import MODEL, sql, st
 
-design.appbar("Understand", "What customers raise",
-              "Every subject customers bring up, grouped by meaning rather than wording, and ranked by how many people raised it.")
+design.appbar("Understand", "What customers raise")
 
-themes = sql("""
+F = st.session_state["filters"]
+
+themes = sql(f"""
     SELECT t.theme_id, coalesce(t.display_name, t.label) AS label,
+           coalesce(t.category, 'Other') AS area,
            t.top_terms, t.n_rows, t.avg_rating,
            -- The review nearest the cluster centre is the most typical, but for
            -- a praise topic that is often literally "good" — true, and useless
@@ -23,7 +25,8 @@ themes = sql("""
                ORDER BY rt.strength DESC LIMIT 200) y
             ORDER BY y.word_count DESC LIMIT 1) AS example
       FROM themes t
-     WHERE t.model = %s ORDER BY t.n_rows DESC""", (MODEL,))
+     WHERE t.model = %s {F.area_clause('t')}
+     ORDER BY t.n_rows DESC""", (MODEL,))
 
 if themes.empty:
     st.error("No topics yet. Run: python -m src.clustering.name_themes")

@@ -5,10 +5,11 @@ import pandas as pd
 import plotly.graph_objects as go
 from shared import MODEL, sql, st
 
-design.appbar("Understand", "What changed",
-              "Compare two periods to see which complaints grew and which faded. Set the dividing line to a release date to see what it affected.")
+design.appbar("Understand", "What changed")
 
-series = sql("""
+F = st.session_state["filters"]
+
+series = sql(f"""
     SELECT date_trunc('week', r.reviewed_at)::date AS week,
            rt.theme_id, coalesce(t.display_name, t.label) AS label,
            t.avg_rating, r.review_version AS version,
@@ -16,7 +17,7 @@ series = sql("""
       FROM review_themes rt
       JOIN reviews r ON r.app = rt.app AND r.review_id = rt.review_id
       JOIN themes t ON t.model = rt.model AND t.theme_id = rt.theme_id
-     WHERE rt.model = %s AND rt.theme_id >= 0
+     WHERE rt.model = %s AND rt.theme_id >= 0 {F.area_clause('t')}
      GROUP BY 1, 2, 3, 4, 5""", (MODEL,))
 
 if series.empty:

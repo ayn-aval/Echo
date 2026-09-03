@@ -38,19 +38,36 @@ def _severity(rating: float) -> float:
     return max(0.0, min(1.0, (3.0 - float(rating)) / 2.0))
 
 
-def priorities(limit: int = 5, window_weeks: int = WINDOW_WEEKS) -> pd.DataFrame:
-    """Ranked complaints, with the numbers behind the rank kept alongside."""
-    weekly = sql("""
+def priorities(limit: int = 5, window_weeks: int = WINDOW_WEEKS,
+               areas: tuple = (), days: int | None = None) -> pd.DataFrame:
+    """Ranked complaints, with the numbers behind the rank kept alongside.
+
+    areas/days come from the global filter bar, so the ranking answers for the
+    slice the reader is looking at rather than always for the whole corpus.
+    """
+    area_sql = ""
+    if areas:
+        area_sql = " AND t.category IN (" + ", ".join(f"'{a}'" for a in areas) + ")"
+    # Two windows are needed to measure momentum, so the period filter is
+    # widened to twice the window rather than applied as the reader set it.
+    span = ""
+    if days:
+        span = (f" AND r.reviewed_at >= (SELECT max(reviewed_at) FROM reviews"
+                f" WHERE app='swiggy') - interval '{max(days, 2 * window_weeks * 7)} days'")
+
+    weekly = sql(f"""
         SELECT date_trunc('week', r.reviewed_at)::date AS week,
                rt.theme_id,
                coalesce(t.display_name, t.label) AS name,
+               coalesce(t.category, 'Other') AS area,
                t.avg_rating,
                count(*) AS reviews
           FROM review_themes rt
           JOIN reviews r ON r.app = rt.app AND r.review_id = rt.review_id
           JOIN themes t ON t.model = rt.model AND t.theme_id = rt.theme_id
          WHERE rt.model = %s AND rt.theme_id >= 0 AND t.avg_rating <= 2.8
-         GROUP BY 1, 2, 3, 4""", (MODEL,))
+           {area_sql}{span}
+         GROUP BY 1, 2, 3, 4, 5""", (MODEL,))
     if weekly.empty:
         return weekly
 
@@ -64,7 +81,8 @@ def priorities(limit: int = 5, window_weeks: int = WINDOW_WEEKS) -> pd.DataFrame
     prior = weekly[weekly.week.isin(prior_weeks)]
 
     def totals(df):
-        g = df.groupby(["theme_id", "name", "avg_rating"], as_index=False).reviews.sum()
+        g = df.groupby(["theme_id", "name", "area", "avg_rating"],
+                       as_index=False).reviews.sum()
         g["share"] = g.reviews / max(g.reviews.sum(), 1)
         return g
 
