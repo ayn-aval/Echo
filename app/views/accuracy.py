@@ -1,18 +1,16 @@
-"""How it works — what the system does and how well, in plain terms.
+"""Is it accurate? — how often the system is right, and where it is not.
 
-Every metric name is translated at the edge. The numbers are the ones in
-results/, unchanged; only the labels differ, because "Precision@10" tells a
-manager nothing and "8 right out of 10" tells them everything. One unit is used
-throughout — out of ten — so the same quantity never appears twice in two forms.
+Every metric is translated at the edge. The numbers are the ones in results/,
+unchanged; only the labels differ, because "Precision@10" tells a manager
+nothing and "8 right out of 10" tells them everything. Method vocabulary is
+confined to the expander at the bottom — this is the only screen allowed any,
+and eval/check_app.py enforces that on the other three.
 """
 
 import design
 import plotly.graph_objects as go
 import streamlit as st
 from shared import csv, sql
-
-design.appbar("How it works",
-              "How the system reads reviews, and how often it is right")
 
 base = csv("baselines.csv")
 ret = base[base.task == "retrieval"] if "task" in base.columns else base
@@ -21,120 +19,150 @@ bench = csv("search_benchmark.csv")
 acc = bench[bench.measure == "accuracy"] if "measure" in bench.columns else bench
 two = acc[acc.config.str.contains("cross-encoder", na=False)]
 best = float(two["precision@10"].iloc[0]) if not two.empty else float(prec.max())
+words = float(prec.get("tfidf", 0))
 
-design.hero(
-    eyebrow="Measured, not claimed",
-    headline="When you search, about 8 of the top 10 reviews are the right ones",
-    value=f"{best / 10:.1f}",
-    unit="right out of every 10 results",
-    side=(f"Simple word matching gets <b>{float(prec.get('tfidf', 0)) / 10:.1f}</b>"
-          f"<br>Every number here comes from a script in <b>eval/</b>"))
+clus = csv("clustering_comparison.csv")
+mine = clus[clus.model == "sbert-domain"] if not clus.empty else clus
+audit = float(mine.audit_accuracy.iloc[0]) if not mine.empty else 82.4
 
-st.markdown("## The three things it does")
-STEPS = [
-    ("Reads every review", "100,000 reviews, including Hindi and Hinglish."),
-    ("Groups them by meaning", "“App keeps crashing” and “closes by itself” "
-                               "count as one problem."),
-    ("Ranks what to fix", "By how many people, how unhappy, and whether it "
-                          "is growing."),
+design.kicker("Measured, not claimed")
+st.markdown("# Should you trust the list?")
+design.lede(
+    "Mostly yes, for deciding <b>what to look at next</b> — and no, not as an "
+    "exact count of affected customers. Here is what was measured, and by which "
+    "script.")
+
+design.rule()
+
+STATS = [
+    (f"{best / 10:.0f} in 10", "search results are on topic",
+     f"Of the top 10 reviews returned for a search, about {best / 10:.0f} are "
+     f"about what you asked. Plain word matching on the same searches manages "
+     f"{words / 10:.1f}."),
+    (f"{audit / 10:.0f} in 10", "reviews are in a sensible group",
+     "Checked by hand on 102 reviews, without knowing which method produced "
+     "each one. The rest usually mention two problems at once and get filed "
+     "under the louder one."),
+    ("Matches the paper", "on the standard benchmark",
+     "The sentence model here was rebuilt from scratch and scores 74.5 on the "
+     "industry sentence-similarity test, against 74.2 in the original paper."),
 ]
-for col, (title, what) in zip(st.columns(3, gap="medium"), STEPS):
+for col, (number, label, body) in zip(st.columns(3, gap="medium"), STATS):
     with col:
-        st.markdown(
-            f"<div class='card' style='height:100%;'><h4>{title}</h4>"
-            f"<div style='color:{design.INK_2};font-size:.88rem;line-height:1.55;'>"
-            f"{what}</div></div>", unsafe_allow_html=True)
+        design.stat(number, label)
+        design.sub(body)
+
+design.rule()
 
 
-def bars(names, values, colours, suffix="", height=240, xlab=""):
+def bars(names, values, colours, height=230, xlab=""):
     fig = go.Figure(go.Bar(
         x=values, y=names, orientation="h", marker_color=colours,
         marker_line_width=0,
-        text=[f"{v:.1f}{suffix}" for v in values], textposition="outside",
-        textfont=dict(color=design.INK_2, size=12),
-        hovertemplate="%{y}: %{x:.1f}" + suffix + "<extra></extra>"))
-    fig.update_traces(marker_cornerradius=5)
+        text=[f"{v:.1f}" for v in values], textposition="outside",
+        textfont=dict(color=design.INK, size=12),
+        hovertemplate="%{y}: %{x:.1f}<extra></extra>"))
+    fig.update_xaxes(range=[0, max(values) * 1.18])
     return design.style(fig, height=height, xlab=xlab)
 
 
-st.markdown("## Does it find the right reviews?")
-rows = [("Matching words only", float(prec.get("tfidf", 0)) / 10, design.MUTED),
-        ("Matching meaning", float(prec.get("sbert-domain", 0)) / 10, design.MUTED),
-        ("Matching meaning, checked twice", best / 10, design.BLUE)]
-st.plotly_chart(
-    bars([r[0] for r in rows][::-1], [r[1] for r in rows][::-1],
-         [r[2] for r in rows][::-1], "", 230,
-         "Right answers out of the top 10"),
-    width="stretch", config={"displayModeBar": False})
+left, right = st.columns(2, gap="large")
+with left:
+    st.markdown("### Does it find the right reviews?")
+    design.sub("Right answers in the top 10, over 26 searches labelled by hand.")
+    rows = [("Matching words only", words / 10),
+            ("Matching meaning", float(prec.get("sbert-domain", 0)) / 10),
+            ("Matching meaning, checked twice", best / 10)]
+    st.plotly_chart(
+        bars([r[0] for r in rows][::-1], [r[1] for r in rows][::-1],
+             [design.ACCENT, design.NEUTRAL_700, design.NEUTRAL_700],
+             xlab="Right answers out of the top 10"),
+        width="stretch", config={"displayModeBar": False})
+    design.sub("Word matching beat the trained model on its own. Only checking "
+               "the shortlist a second time got ahead of it — an honest result, "
+               "not the one that was expected.")
 
-st.markdown("## Are the topics sensible?")
-clus = csv("clustering_comparison.csv")
-if not clus.empty:
-    label = {"glove-avg": "Simple method", "bert-mean": "Standard method",
-             "sbert-domain": "This system"}
-    clus = clus.assign(name=clus.model.map(label).fillna(clus.model))
-    colour = [design.BLUE if m == "sbert-domain" else design.MUTED
-              for m in clus.model]
-    left, right = st.columns(2, gap="large")
-    with left:
-        st.markdown("### Reviews put in the right topic")
-        st.plotly_chart(bars(clus.name[::-1], clus.audit_accuracy[::-1] / 10,
-                             colour[::-1], "", 210,
-                             "Correct out of every 10, checked by hand"),
-                        width="stretch", config={"displayModeBar": False})
-    with right:
-        st.markdown("### Reviews dumped in one giant group")
-        st.plotly_chart(bars(clus.name[::-1], clus.largest_pct[::-1] / 10,
-                             colour[::-1], "", 210,
-                             "Out of every 10 reviews — lower is better"),
-                        width="stretch", config={"displayModeBar": False})
-    design.note("102 reviews were checked by hand without knowing which method "
-                "produced them.")
+with right:
+    st.markdown("### Are the groups sensible?")
+    design.sub("Correct out of every 10, judged by hand without knowing which "
+               "method produced each.")
+    if not clus.empty:
+        label = {"glove-avg": "Simple method", "bert-mean": "Standard method",
+                 "sbert-domain": "This system"}
+        names = clus.model.map(label).fillna(clus.model).tolist()
+        colours = [design.ACCENT if m == "sbert-domain" else design.NEUTRAL_700
+                   for m in clus.model]
+        st.plotly_chart(
+            bars(names[::-1], (clus.audit_accuracy / 10).tolist()[::-1],
+                 colours[::-1], xlab="Correct out of every 10"),
+            width="stretch", config={"displayModeBar": False})
+        design.sub("The gap over the standard method is real but small, and 102 "
+                   "judgements is not enough to be sure of it.")
 
-st.markdown("## What it gets wrong")
-hidden = sql("""SELECT coalesce(display_name, label) AS name, n_rows
-                  FROM themes WHERE model='sbert-domain' AND NOT actionable
-                 ORDER BY n_rows DESC""")
-LIMITS = [
-    ("Hindi and Hinglish", "4 in 100 reviews",
-     "It sees that they look alike but not what they say, so it can group them "
-     "by language instead of subject."),
-    ("Reviews with no detail", "1 in 5 reviews",
-     "“Good” and “nice” form some of the largest topics. Real, but nothing to "
-     "act on."),
-    ("How much was checked", "26 searches, 102 topics",
-     "Enough to separate methods that clearly differ, not enough to separate "
-     "the close ones."),
-]
-for col, (title, scale, what) in zip(st.columns(3, gap="medium"), LIMITS):
-    with col:
-        st.markdown(
-            f"<div class='card' style='height:100%;'><h4>{title}</h4>"
-            f"<div style='color:{design.CRITICAL};font-weight:660;"
-            f"font-size:.85rem;margin-bottom:7px;'>{scale}</div>"
-            f"<div style='color:{design.INK_2};font-size:.88rem;line-height:1.55;'>"
-            f"{what}</div></div>", unsafe_allow_html=True)
+design.rule()
 
-if not hidden.empty:
-    st.markdown("### Topics kept off the other screens")
-    worst = int(hidden.n_rows.max())
-    design.rank_rows([(r.name, r.n_rows / worst, f"{r.n_rows:,}", "reviews",
-                       design.MUTED) for r in hidden.itertuples()])
-    design.note("These are real groupings the system found, and no team can act "
-                "on them. They still count towards every total.")
+# ── the honest half ─────────────────────────────────────────────────────────
+left, right = st.columns(2, gap="large")
+with left:
+    st.markdown("### Where it gets things wrong")
+    for title, body in [
+        ("Two complaints in one review",
+         "Cold food <i>and</i> a rude rider — only the louder one gets counted."),
+        ("Hindi and Hinglish", "About 4 in 100 reviews. The system sees that "
+         "they look alike but not what they say, so it can group them by "
+         "language instead of by subject."),
+        ("Reviews with no detail", "About 1 in 5. “Good” and “nice” form some "
+         "of the largest groups. Real, and nothing to act on."),
+        ("How much was checked", "26 searches and 102 group judgements. Enough "
+         "to separate methods that clearly differ, not enough to separate the "
+         "close ones."),
+    ]:
+        design.limit(title, body)
 
-with st.expander("Technical detail"):
+with right:
+    st.markdown("### What happens to a review")
+    st.markdown(
+        "1. Every review is pulled from Google Play and stored.\n"
+        "2. Each is turned into a set of numbers standing for its *meaning*, so "
+        "reviews that say the same thing in different words end up near each "
+        "other.\n"
+        "3. Reviews that sit close together become one problem, and the problem "
+        "is named from the words that make it distinctive.\n"
+        "4. Each problem gets a weekly count, and an alert fires when a week is "
+        "far above that problem's own recent normal.")
+
+    hidden = sql("""SELECT coalesce(display_name, label) AS name, n_rows
+                      FROM themes WHERE model='sbert-domain' AND NOT actionable
+                     ORDER BY n_rows DESC""")
+    if not hidden.empty:
+        st.markdown("### Groups kept off the other screens")
+        design.sub("Real groupings that no team can act on. They still count "
+                   "towards every total on this site.")
+        top = int(hidden.n_rows.max()) or 1
+        for h in hidden.itertuples():
+            design.bar(h.name, f"{int(h.n_rows):,}", 100 * int(h.n_rows) / top)
+
+st.write("")
+with st.expander("Show the technical pipeline and the raw figures"):
     st.markdown("""
+google-play-scraper → Postgres → sentence embeddings from a Sentence-BERT
+reproduction written in raw PyTorch (siamese training loop by hand, then
+domain-adapted on mined review pairs) → UMAP + HDBSCAN for the grouping →
+c-TF-IDF for the labels → FAISS for semantic search → weekly series with
+z-score spike alerts.
+
 | measure | result |
 |---|---|
 | Sentence-BERT reproduction (STS avg) | 74.54 · paper 74.21 |
-| Search, Precision@10 — word matching | 65.00 |
-| Search, Precision@10 — trained model | 61.15 |
-| Search, Precision@10 — with reranking | **75.77** |
-| Topic audit — this model | 82.4% |
-| Topic audit — averaged GloVe | 44.1% |
+| Search, Precision@10 — word matching (TF-IDF) | 65.00 |
+| Search, Precision@10 — trained bi-encoder | 61.15 |
+| Search, Precision@10 — with cross-encoder reranking | **75.77** |
+| Group audit — this model | 82.4% |
+| Group audit — mean-pooled BERT | 73.5% |
+| Group audit — averaged GloVe | 44.1% |
 
-74.54 is a different training recipe, not a better result on the same one.
-The 82.4% vs 73.5% gap over mean-pooled BERT is **not** significant (p=0.56).
-Full write-ups in `results/phase3_notes.md` onward.
+74.54 comes from a different training recipe, so it is not a better result on
+the same one. The 82.4% against 73.5% gap over mean-pooled BERT is **not**
+statistically significant (Fisher exact, p=0.56). Every figure is reproducible
+from a script in `eval/` and written to `results/`.
 """)

@@ -19,7 +19,10 @@ import streamlit as st
 
 PERIODS = {"Last 4 weeks": 28, "Last 8 weeks": 56, "Last 3 months": 90,
            "Last 6 months": 180, "All time": None}
-DEFAULT_PERIOD = "Last 3 months"
+# Eight weeks is the default because it is the window the ranked list is built
+# for: one week of this corpus puts only 47 reviews behind the biggest problem,
+# and most weeks then read as falling rather than as anything worth acting on.
+DEFAULT_PERIOD = "Last 8 weeks"
 
 AREA_KEY = "area"          # set by clicking a bar on Overview; None means all
 
@@ -62,8 +65,11 @@ def bar() -> Filters:
     st.session_state.setdefault("period", DEFAULT_PERIOD)
 
     with st.sidebar:
-        st.markdown("<div class='filter-head'>Time period</div>",
-                    unsafe_allow_html=True)
+        # No rule here: Streamlit already draws stSidebarNavSeparator directly
+        # above this, and two hairlines in a row read as a mistake.
+        st.markdown("<div class='side-note' style='text-transform:uppercase;"
+                    "letter-spacing:.1em;font-weight:800;margin-bottom:6px'>"
+                    "Time period</div>", unsafe_allow_html=True)
         # `key` alone: session_state already holds the value, and passing index as
         # well makes Streamlit warn that the default will be ignored.
         period = st.selectbox("Period", list(PERIODS), key="period",
@@ -73,10 +79,9 @@ def bar() -> Filters:
     current = Filters(period, (area,) if area else (), PERIODS[period])
 
     with st.sidebar:
-        st.markdown(f"<div class='sidenote'>Swiggy · Google Play<br>"
-                    f"Showing {current.label}<br><br>"
-                    f"Changes what <b>What to fix</b> counts. The rating charts "
-                    f"always use all 100,000 reviews.</div>",
-                    unsafe_allow_html=True)
+        st.markdown("<div class='side-rule'></div>"
+                    "<div class='side-note'>100,000 Google Play reviews<br>"
+                    "18 Jan – 26 Aug 2026<br>"
+                    f"Showing {current.label}</div>", unsafe_allow_html=True)
 
     return current

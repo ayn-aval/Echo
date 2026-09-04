@@ -19,33 +19,29 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import design
 import streamlit as st
 
-st.set_page_config(page_title="Echo — customer feedback intelligence",
+st.set_page_config(page_title="Echo — what customers are complaining about",
                    page_icon=design.MARK, layout="wide",
                    initial_sidebar_state="expanded")
 design.boot()
 
-# Four screens, ungrouped. Seven needed Monitor/Understand/About headings to be
-# navigable; four do not, and the headings were themselves something to read.
-#
-# "Start here" carries no controls and no figure that needs interpreting. It
-# exists because every other screen assumes the reader already knows whose
-# reviews these are and what was done to them, and a first-time visitor does not.
-#
-# Titles name what the screen answers rather than where it sits: "Overview" and
-# "Explore" describe a location, "What to fix" describes a question. url_paths
-# are unchanged so existing links keep resolving.
+# Four screens, numbered because they are meant to be read in order the first
+# time: what this is, what to fix, the detail behind it, and whether to believe
+# any of it. Titles name a question rather than a location.
 PAGES = [
-    st.Page("views/start.py", title="Start here", url_path="start", default=True),
-    st.Page("views/home.py", title="What to fix", url_path="overview"),
-    st.Page("views/issues.py", title="Topics & search", url_path="explore"),
-    st.Page("views/accuracy.py", title="How it works", url_path="how"),
+    st.Page("views/start.py", title="1  Start here", url_path="start",
+            default=True),
+    st.Page("views/home.py", title="2  What to fix first", url_path="overview"),
+    st.Page("views/issues.py", title="3  Explore complaints",
+            url_path="explore"),
+    st.Page("views/accuracy.py", title="4  Is it accurate?", url_path="how"),
 ]
 
+# The wordmark is CSS on the sidebar header (see design.py): Streamlit fixes the
+# sidebar's child order, so anything written here would appear under the menu.
 page = st.navigation(PAGES, position="sidebar", expanded=True)
 
-# One filter bar for the whole app: a reader sets their area and period once and
-# every screen answers for that slice. Stored in session_state so it survives
-# navigation, and nameable so it survives the browser closing.
+# One filter for the whole app, set once and honoured by every screen. Kept in
+# session_state so it survives navigation.
 import filters  # noqa: E402  (after boot, so the stylesheet is already applied)
 
 st.session_state["filters"] = filters.bar()

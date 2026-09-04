@@ -2,19 +2,24 @@
 
 Every other screen assumes you already know what you are looking at. This one
 does not: it says whose reviews these are, what the system did to them, and
-which screen answers which question. It is the only screen with no controls and
-nothing to interpret.
+which screen answers which question. It carries no controls.
 
-The figures are queried rather than typed, so the page cannot quietly go stale
-when the corpus is rebuilt — the same rule the rest of the app follows.
+The centre of the screen is the demonstration: three real reviews that share no
+keyword, and the one problem they were filed under. That is the whole project in
+five seconds, and it is the thing a reader has to believe before any ranked list
+means anything. The quotes are queried from the theme they actually belong to
+rather than written here, so they cannot drift from what the system really did.
 """
 
 import design
 import streamlit as st
 from shared import ALL_REVIEWS, MODEL, sql
 
-design.appbar("Echo", "Customer feedback intelligence",
-              right="Swiggy &nbsp;·&nbsp; Google Play")
+# The theme the demonstration is drawn from. Chosen because its members are
+# unusually varied in wording — "1hr delay", "2 hours ago", "waits for more than
+# an hour" — which is exactly the point being made. If it ever stops existing
+# the page falls back to the largest complaint rather than breaking.
+DEMO_THEME = "Waited an hour or more"
 
 facts = sql(f"""
     SELECT count(*) AS reviews,
@@ -25,74 +30,98 @@ facts = sql(f"""
            )::int AS per_month
       FROM reviews WHERE {ALL_REVIEWS}""").iloc[0]
 
-# The browsable count, not the raw one. Clustering produced 110 groups and four
-# of them are set aside as unactionable (reviews grouped by language, or angry
-# with no reason given), so Topics & search shows 106. Counting all 110 here
-# would make the opening screen disagree with the screen it links to; "How it
-# works" is where the four that were dropped are named.
+months = round((facts.last_day - facts.first_day).days / 30.44)
 topics = int(sql("SELECT count(*) AS n FROM themes "
                  "WHERE model = %s AND actionable", (MODEL,)).n.iloc[0])
 
-design.hero(
-    eyebrow="What this is",
-    headline=(f"{facts.reviews:,} customer reviews, sorted into the "
-              f"problems worth fixing"),
-    value=f"{facts.reviews:,}",
-    unit=f"reviews · {facts.first_day:%d %b} to {facts.last_day:%d %b %Y}",
-    side=(f"About <b>{facts.per_month:,}</b> more arrive every month.<br>"
-          f"No team has time to read them."))
+design.kicker("Start here — 60 seconds")
+st.markdown(f"# Nobody reads {facts.per_month:,} reviews a month.")
+design.lede(
+    "Echo reads all of them and gives you one thing: <b>a ranked list of the "
+    "problems customers are actually hitting</b> — biggest first, with the real "
+    "reviews behind each one.")
+design.sub(
+    "Think of it as the Monday-morning screen for whoever owns the Swiggy app: "
+    "open it, see what is worst right now, click through to the complaints, "
+    "decide what to fix.")
 
-# ── the three questions, which are also the three other screens ─────────────
-st.markdown("## What you can answer here")
+design.rule()
 
-ANSWERS = [
-    ("What should we fix first?",
-     "A ranked list of problems, each with a real customer quote and the "
-     "numbers behind its place in the list.",
-     "views/home.py", "Open what to fix"),
-    ("What are customers talking about?",
-     f"{topics} subjects found in the reviews themselves — nobody wrote the "
-     "list. Search matches meaning, so “money not returned” also finds “my "
-     "refund never came”.",
-     "views/issues.py", "Open topics and search"),
-    ("Can I trust these numbers?",
-     "Every figure on this site is produced by a script and checked against "
-     "reviews read by hand. That screen also says what it gets wrong.",
-     "views/accuracy.py", "Open how it works"),
-]
-
-for col, (question, answer, page, link) in zip(st.columns(3, gap="medium"),
-                                               ANSWERS):
+for col, (number, label) in zip(st.columns(4), [
+        (f"{facts.reviews:,}", "reviews read"),
+        (f"{topics}", "distinct problems found"),
+        (f"{months} mths", "of history to compare against"),
+        (f"{facts.per_month:,}", "new reviews every month")]):
     with col:
-        st.markdown(
-            f"<div class='card' style='min-height:170px;'><h4>{question}</h4>"
-            f"<div style='color:{design.INK_2};font-size:.88rem;line-height:1.55;'>"
-            f"{answer}</div></div>", unsafe_allow_html=True)
-        st.page_link(page, label=link)
+        design.stat(number, label)
 
-# ── what the system actually does ───────────────────────────────────────────
-st.markdown(f"## How it reads {facts.reviews:,} reviews")
+design.rule()
 
-STEPS = [
-    ("Reads every review",
-     f"All {facts.reviews:,} of them, written between {facts.first_day:%B %Y} "
-     f"and {facts.last_day:%B %Y}, including the ones in Hindi and Hinglish."),
-    ("Groups them by meaning",
-     "<em>“App keeps crashing”</em> and <em>“it closes by itself”</em> count "
-     "as one problem, though they share no words. That is how all "
-     f"{topics} topics on this site were found."),
-    ("Ranks what to fix",
-     "By how many customers raised it, how unhappy they were, and whether it "
-     "is growing week on week."),
-]
+# ── the demonstration ───────────────────────────────────────────────────────
+st.markdown("## The trick: it groups by meaning, not by words")
+design.sub(
+    "Searching for the word “hour” misses most of these, because people describe "
+    "the same wait in completely different ways. The three reviews below share "
+    "almost nothing on the page. Echo files all three under one problem.")
 
-for col, (n, (title, what)) in zip(st.columns(3, gap="medium"),
-                                   enumerate(STEPS, 1)):
-    with col:
-        st.markdown(f"<div class='step'><div class='n'>{n}</div>"
-                    f"<h4>{title}</h4><p>{what}</p></div>",
+demo = sql("""
+    SELECT coalesce(t.display_name, t.label) AS name, t.n_rows, t.avg_rating,
+           t.category AS area, r.content, r.word_count
+      FROM review_themes rt
+      JOIN reviews r ON r.app = rt.app AND r.review_id = rt.review_id
+      JOIN themes t ON t.model = rt.model AND t.theme_id = rt.theme_id
+     WHERE rt.model = %s AND t.actionable
+       AND coalesce(t.display_name, t.label) = %s
+       AND r.word_count BETWEEN 5 AND 14
+     ORDER BY rt.strength DESC LIMIT 3""", (MODEL, DEMO_THEME))
+
+if demo.empty:
+    design.sub("The example theme is not in the database yet. "
+               "Run: python -m src.clustering.name_themes")
+else:
+    head = demo.iloc[0]
+    left, mid, right = st.columns([5, 1, 5])
+    with left:
+        for quote in demo.content:
+            design.quote_chip(" ".join(str(quote).split())[:110])
+    with mid:
+        st.markdown('<div style="font-size:28px;font-weight:800;'
+                    f'color:{design.ACCENT};padding-top:18px">→</div>',
                     unsafe_allow_html=True)
+    with right:
+        st.markdown(
+            '<div class="problem-box"><div class="kicker">One problem</div>'
+            '<div style="font-weight:800;font-size:22px;line-height:1.15">'
+            f'{head["name"]}</div>'
+            f'<div style="font-size:13px;margin-top:8px;color:{design.MUTED}">'
+            f'{head.n_rows:,} reviews · avg rating {head.avg_rating:.1f} · '
+            f'{head.area.lower()}</div></div>', unsafe_allow_html=True)
 
-design.note("Built on public Google Play reviews as a portfolio project. "
-            "It is right about most reviews, not all of them — “How it works” "
-            "shows how often, and where it fails.")
+design.rule()
+
+# ── where to go, and what not to believe ────────────────────────────────────
+left, right = st.columns(2, gap="large")
+with left:
+    st.markdown("### How to use the next three screens")
+    st.markdown(
+        "1. **What to fix first** — the ranked problem list and anything that "
+        "spiked. Click a bar to filter the whole page to one part of the "
+        "business.\n"
+        "2. **Explore complaints** — ask in plain English (“drivers cancelling "
+        "at the door”) and read the reviews that match.\n"
+        "3. **Is it accurate?** — how often it files a review correctly, and "
+        "where it still gets things wrong.")
+    if st.button("Show me what to fix first  →", type="primary", key="goto"):
+        st.switch_page("views/home.py")
+with right:
+    st.markdown("### Honest limits")
+    st.markdown(
+        "- Only Google Play reviews — not the App Store, support tickets or "
+        "social.\n"
+        "- Reviewers skew angry, so these counts measure *noise*, not how many "
+        "customers were affected.\n"
+        "- Roughly **1 review in 6** lands in a group a person would have filed "
+        "elsewhere.\n"
+        "- About a third of reviews say only “good” or “worst” and cannot be "
+        "placed at all.\n"
+        "- A portfolio project on public data. Not an internal Swiggy tool.")

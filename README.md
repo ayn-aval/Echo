@@ -26,15 +26,17 @@ the other two. That is the gap this project closes.
 
 | Question a growth team asks | Where Echo answers it |
 |---|---|
-| What is hurting us most right now? | **What to fix** — a ranked list, each with a real customer quote |
-| Which part of the business is worst? | **What to fix** — click any area to focus the whole screen on it |
-| Did something break last week? | **What to fix** — volume spikes against each topic's own normal range |
-| What are customers actually talking about? | **Topics & search** — 110 topics found in the reviews themselves |
-| Is this one getting worse? | **Topics & search** — click a topic for its week-by-week history and its reviews |
-| "What do people say about refunds?" | **Topics & search** — search finds paraphrases, not just the word *refund* |
+| What is hurting us most right now? | **What to fix first** — a ranked list, each with a real customer quote |
+| Which part of the business is worst? | **What to fix first** — click any area to focus the whole screen on it |
+| Did something break last week? | **What to fix first** — volume spikes against each topic's own normal range |
+| What are customers actually talking about? | **Explore complaints** — 110 topics found in the reviews themselves |
+| Is this one getting worse? | **Explore complaints** — click a topic for its week-by-week history and its reviews |
+| "What do people say about refunds?" | **Explore complaints** — search finds paraphrases, not just the word *refund* |
 
-The app opens on **Start here**, which states what it is and sends a first-time
-reader to whichever of the three screens answers their question.
+The app opens on **Start here**, which states what it is, shows three real
+reviews that share no keyword and the one problem they were filed under, and
+sends a first-time reader to whichever of the other three screens answers their
+question.
 
 ![The Start here screen](results/screens/start.png)
 

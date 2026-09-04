@@ -29,11 +29,24 @@ from pathlib import Path
 
 APP = Path("app")
 VIEWS = sorted(APP.glob("views/*.py"))
+# Method vocabulary belongs on exactly one screen, behind its expander. The
+# other three are read by people who do not know what a cluster is, and a single
+# leaked term is enough to make the whole page feel like someone's notebook.
 JARGON = re.compile(r"\bz[- ]?scores?\b|\bz = |\bz ≥|baseline mean|"
                     r"standard deviation|Precision@\d|silhouette|"
                     r"statistically significant|Fisher|cosine similarity|"
-                    r"cross-encoder|bi-encoder|Poisson|p=0\.", re.I)
-EMOJI = re.compile("[\U0001F300-\U0001FAFF←-⯿☀-➿️]")
+                    r"cross-encoder|bi-encoder|Poisson|p=0\.|c-TF-IDF|"
+                    r"HDBSCAN|UMAP|FAISS|embedding|centroid|\bcluster",
+                    re.I)
+# The one screen whose job is to explain the method. Jargon there is reported
+# but does not fail the run.
+JARGON_EXEMPT = {"accuracy.py"}
+# Arrows (U+2190-U+21FF) are deliberately NOT here. "scraper -> Postgres" is
+# typography, not an emoji, and the old range banned it on one screen while
+# letting the identical glyph through on another purely because that one
+# was written as the HTML entity &rarr;. Everything else in the symbol and
+# dingbat blocks stays banned.
+EMOJI = re.compile("[\U0001F300-\U0001FAFF\u2200-\u2BFF\u2600-\u27BF\uFE0F]")
 
 
 def parses() -> list:
@@ -89,13 +102,17 @@ def main() -> None:
         err, text = renders(path)
         jargon = sorted(set(JARGON.findall(text)))
         emoji = sorted(set(EMOJI.findall(text)))
-        status = "FAIL" if err else ("WARN" if jargon or emoji else " ok ")
-        failures += bool(err)
-        detail = err or ("jargon=" + str(jargon) if jargon else "") \
-            or ("emoji=" + str(emoji) if emoji else "")
+        exempt = path.name in JARGON_EXEMPT
+        # Emoji fail everywhere; jargon fails everywhere except the screen whose
+        # subject is the method.
+        broke = bool(err) or bool(emoji) or (bool(jargon) and not exempt)
+        status = "FAIL" if broke else ("note" if jargon else " ok ")
+        failures += broke
+        detail = err or ("emoji=" + str(emoji) if emoji else "") \
+            or ("jargon=" + str(jargon) if jargon else "")
         print(f"   {status} {path.name:14} {detail}")
 
-    print(f"\n{len(VIEWS) - failures}/{len(VIEWS)} screens render")
+    print(f"\n{len(VIEWS) - failures}/{len(VIEWS)} screens render clean")
     if failures:
         raise SystemExit(1)
 

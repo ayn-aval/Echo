@@ -13,7 +13,7 @@
 | 4 — Domain adaptation | **done. Precision@10 45.77 -> 61.15, STS 72.17 -> 74.54** |
 | 5 — Theme discovery | **done. 110 themes; audit 82.4% vs GloVe's 44.1%** |
 | 6 — Semantic search | **done. 75.77 P@10 two-stage — first system to beat TF-IDF** |
-| 7 — Streamlit dashboard | **done. 4 screens, redesigned twice; `streamlit run app/main.py`** |
+| 7 — Streamlit dashboard | **done. 4 screens, redesigned three times; `streamlit run app/main.py`** |
 | 8 — Trends and alerts | **done. 16 alerts at z>=3; Power BI guide written** |
 | 9 — Write-up and polish | **done. README, cleanup, traceability check** |
 
@@ -665,6 +665,88 @@ now sums `n_rows` — how many people actually wrote something that close.
 
 `url_path` values were left unchanged, so existing links and the screenshot
 filenames in the README still resolve.
+
+## Third design pass — rebuilt to a supplied reference
+
+The user dropped a zip into ~/Downloads and said "this is how I want my
+streamlit app to be". It was not a mockup: it was a working four-screen
+Streamlit app with its own design system, information architecture and copy
+rules, running on invented demo data. It was unpacked, run on port 8599 and
+photographed before any of it was adopted, so the decisions below are against
+what it renders rather than what its README claims.
+
+### What was taken
+
+An editorial, flat, Swiss look — Archivo at weight 800, `border-radius: 0`
+everywhere, a warm off-white ground, one hot red accent, 2px rules instead of
+cards and shadows. Statement headlines. A stat row. And the single best idea in
+it: the *groups by meaning* demonstration — three differently-worded quotes, an
+arrow, one problem box — which explains the project in five seconds and which
+none of the previous designs attempted.
+
+The demonstration uses **real** reviews, queried from the theme they actually
+belong to. "worst delivery time 1hr delay", "waits for more than an hour and
+then says food is cancelled", "Wasnt able to connect to customer care more than
+half an hour" → *Waited an hour or more*, 761 reviews at 1.1 stars.
+
+### What was rejected, and why
+
+**Its navigation does not work.** `theme.py` sets
+`[data-testid="stSidebarNav"] { display: none }`. Confirmed in its own running
+DOM: computed display is `none`, so no screen is reachable except through one
+button. Our nav is kept and restyled; the wordmark is drawn as CSS pseudo-
+elements on the sidebar header, because Streamlit fixes the sidebar's child
+order and anything written with `st.sidebar` lands *below* the menu.
+
+**Every number in it is invented**, at roughly 26x the real volume, and several
+contradict the measured results. Corrected on the way in: "2 in 3 search results
+on topic" → 7.6 in 10; "7 in 8 reviews in a sensible group" → 8 in 10; "a random
+sample of 400 reviews" → 102, blind; "P@10 65.0 vs 40.0 for BM25" → 65.0 *is*
+the TF-IDF baseline and there is no BM25 run; "1 review in 8 filed elsewhere" →
+about 1 in 6.
+
+**Its weekly frame does not survive real data.** The user was shown this before
+deciding: the last complete week holds 2,889 reviews and puts 47 behind the
+biggest problem at -16% against normal, so a weekly headline reads as nothing
+happening. The ranked list is eight weeks; spikes stay weekly, because that is
+what a spike is.
+
+**Its sentence "they fall into the problems below" is an overclaim** at real
+volumes. 26,010 reviews arrived in the window and 10,481 of them could be placed
+in a problem at all. The screen now says both numbers.
+
+### The palette was measured, not eyeballed
+
+There is no JS runtime on this machine, so the validator was ported to Python
+rather than skipped. One result changed a decision: **accent-400 #ff9783 is
+1.88:1 against the ground**, under the 3:1 floor, and is the reference's bar
+fill. A contrast warning is dischargeable only by a mandatory second cue, so it
+stays for bars — which always print their name and number — and is replaced by
+the full accent for sparklines, where a 5px mark has no label to fall back on.
+Stars are drawn in two states rather than three, because a diverging scale needs
+two hues and this system supplies one.
+
+### Bugs found in our own code on the way
+
+- Forcing Archivo onto every element broke Streamlit's Material icon ligatures,
+  so the sidebar collapse control rendered the literal text
+  "keyboard_double_arrow_left". Icon spans are now exempt from the font rule.
+- `st.session_state["query"] = example` raised `StreamlitAPIException`: a key
+  owned by an instantiated widget cannot be assigned. The seed now lives under
+  its own key and is passed as `value=`, with the input given no key so its
+  identity follows its arguments.
+- Sparklines dated back from `max(week_start)` returned a ragged bar count — the
+  caption said eight while the chart showed thirteen. Trimmed in pandas instead.
+
+### The copy rule is now machine-checked
+
+The reference's rule that method vocabulary appears nowhere outside screen 4 is
+enforced rather than hoped for: `eval/check_app.py` fails the run on jargon in
+screens 1-3 and merely notes it on `accuracy.py`, and the pattern was extended
+to cluster, embedding, HDBSCAN, UMAP, FAISS and c-TF-IDF. Arrows were removed
+from the emoji pattern — "scraper -> Postgres" is typography, and the old range
+banned it on one screen while letting the identical glyph through on another
+purely because that one was written as `&rarr;`.
 
 ## Decisions made
 
