@@ -9,15 +9,18 @@ Three checks, in order of how quietly each failure hides:
    prints one to stderr and then returns an AppTest whose `.exception` is None,
    so a broken file reports as passing. Four screens shipped broken that way.
 
-2. **Render.** Each screen runs under AppTest with stderr captured, and the
-   capture is inspected as well as `.exception`, for the same reason.
+2. **Render.** Screens are no longer standalone scripts — they are modules
+   exposing `render()`, reached through a session-state router — so each is
+   exercised by running app/main.py with `screen` preset. That also tests the
+   router itself, which running the view files directly never did.
 
 3. **Language.** The rendered text is scanned for statistics vocabulary and
-   emoji, both of which the dashboard is meant to keep out of the reader's way.
+   emoji. Method words are allowed on exactly one screen, the one whose subject
+   IS the method; anywhere else they fail the run.
 
 An HTTP 200 from the Streamlit server proves nothing here — it serves the app
-shell before any page code runs, so every route returns 200 even when every page
-is broken. That was the other half of the false pass.
+shell before any page code runs, so every route returns 200 even when every
+screen is broken. That was the other half of the false pass.
 """
 
 import ast
@@ -28,7 +31,12 @@ from contextlib import redirect_stderr
 from pathlib import Path
 
 APP = Path("app")
-VIEWS = sorted(APP.glob("views/*.py"))
+MAIN = APP / "main.py"
+
+# The four screens, as the router keys them.
+SCREENS = {"week": "This week", "fix": "The fix list",
+           "ask": "Ask anything", "trust": "Can I trust it"}
+
 # Method vocabulary belongs on exactly one screen, behind its expander. The
 # other three are read by people who do not know what a cluster is, and a single
 # leaked term is enough to make the whole page feel like someone's notebook.
@@ -38,15 +46,13 @@ JARGON = re.compile(r"\bz[- ]?scores?\b|\bz = |\bz ≥|baseline mean|"
                     r"cross-encoder|bi-encoder|Poisson|p=0\.|c-TF-IDF|"
                     r"HDBSCAN|UMAP|FAISS|embedding|centroid|\bcluster",
                     re.I)
-# The one screen whose job is to explain the method. Jargon there is reported
-# but does not fail the run.
-JARGON_EXEMPT = {"accuracy.py"}
-# Arrows (U+2190-U+21FF) are deliberately NOT here. "scraper -> Postgres" is
-# typography, not an emoji, and the old range banned it on one screen while
-# letting the identical glyph through on another purely because that one
-# was written as the HTML entity &rarr;. Everything else in the symbol and
-# dingbat blocks stays banned.
-EMOJI = re.compile("[\U0001F300-\U0001FAFF\u2200-\u2BFF\u2600-\u27BF\uFE0F]")
+JARGON_EXEMPT = {"trust"}
+
+# Emoji blocks only. Arrows, the true minus sign and box-drawing characters are
+# typography and are deliberately NOT banned: "scraper -> Postgres" and "-21%"
+# are correct typesetting, and an earlier, wider range failed the run on the
+# stylesheet's own section rules.
+EMOJI = re.compile("[\U0001F300-\U0001FAFF\u2600-\u27BF\u2B00-\u2BFF\uFE0F]")
 
 
 def parses() -> list:
@@ -59,31 +65,33 @@ def parses() -> list:
     return bad
 
 
-def renders(path: Path):
-    """(error, visible_text). stderr is captured because AppTest writes a
-    SyntaxError there and reports success anyway."""
-    from streamlit.testing.v1 import AppTest
-    sys.path.insert(0, str(APP.resolve()))
-    from filters import Filters
+def renders(screen: str):
+    """(error, visible_text) for one screen, driven through the real router.
 
+    stderr is captured because AppTest writes a SyntaxError there and reports
+    success anyway.
+    """
+    from streamlit.testing.v1 import AppTest
+
+    sys.path.insert(0, str(APP.resolve()))
     buf = io.StringIO()
     try:
         with redirect_stderr(buf):
-            # Absolute: AppTest resolves a relative path against the file
-            # that calls it, which is this module in eval/, not the caller's cwd.
-            at = AppTest.from_file(str(path.resolve()), default_timeout=400)
-            at.session_state["filters"] = Filters("All time", (), None)
+            at = AppTest.from_file(str(MAIN.resolve()), default_timeout=400)
+            at.session_state["screen"] = screen
             at.run()
-    except Exception as exc:                      # noqa: BLE001
+    except Exception as exc:                              # noqa: BLE001
         return f"{type(exc).__name__}: {exc}", ""
 
     err = at.exception[0].value if at.exception else None
-    if err and "url_pathname" in str(err):
-        err = None          # st.page_link only resolves inside the nav shell
     noise = buf.getvalue()
     if "SyntaxError" in noise or "Traceback" in noise:
         err = err or noise.strip().splitlines()[-1]
-    text = " ".join([m.value for m in at.markdown] + [c.value for c in at.caption])
+    # The stylesheet is itself an st.markdown call, so it lands in at.markdown.
+    # Scanning it means checking CSS comments for jargon and section rules for
+    # emoji, which is how "──" once failed every screen at once.
+    body = [m.value for m in at.markdown if not m.value.lstrip().startswith("<style")]
+    text = " ".join(body + [c.value for c in at.caption])
     return err, text
 
 
@@ -98,21 +106,19 @@ def main() -> None:
 
     print("\n2. render + 3. language")
     failures = 0
-    for path in VIEWS:
-        err, text = renders(path)
+    for key, label in SCREENS.items():
+        err, text = renders(key)
         jargon = sorted(set(JARGON.findall(text)))
         emoji = sorted(set(EMOJI.findall(text)))
-        exempt = path.name in JARGON_EXEMPT
-        # Emoji fail everywhere; jargon fails everywhere except the screen whose
-        # subject is the method.
+        exempt = key in JARGON_EXEMPT
         broke = bool(err) or bool(emoji) or (bool(jargon) and not exempt)
         status = "FAIL" if broke else ("note" if jargon else " ok ")
         failures += broke
         detail = err or ("emoji=" + str(emoji) if emoji else "") \
             or ("jargon=" + str(jargon) if jargon else "")
-        print(f"   {status} {path.name:14} {detail}")
+        print(f"   {status} {label:16} {detail}")
 
-    print(f"\n{len(VIEWS) - failures}/{len(VIEWS)} screens render clean")
+    print(f"\n{len(SCREENS) - failures}/{len(SCREENS)} screens render clean")
     if failures:
         raise SystemExit(1)
 

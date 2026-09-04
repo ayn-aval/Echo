@@ -13,7 +13,7 @@
 | 4 — Domain adaptation | **done. Precision@10 45.77 -> 61.15, STS 72.17 -> 74.54** |
 | 5 — Theme discovery | **done. 110 themes; audit 82.4% vs GloVe's 44.1%** |
 | 6 — Semantic search | **done. 75.77 P@10 two-stage — first system to beat TF-IDF** |
-| 7 — Streamlit dashboard | **done. 4 screens, redesigned three times; `streamlit run app/main.py`** |
+| 7 — Streamlit dashboard | **done. 4 screens, top-tab shell; `streamlit run app/main.py`** |
 | 8 — Trends and alerts | **done. 16 alerts at z>=3; Power BI guide written** |
 | 9 — Write-up and polish | **done. README, cleanup, traceability check** |
 
@@ -747,6 +747,75 @@ to cluster, embedding, HDBSCAN, UMAP, FAISS and c-TF-IDF. Arrows were removed
 from the emoji pattern — "scraper -> Postgres" is typography, and the old range
 banned it on one screen while letting the identical glyph through on another
 purely because that one was written as `&rarr;`.
+
+## Fourth design pass — the v2 reference: top tabs and a weekly briefing
+
+A second zip arrived and the user asked for "this exact design and UI". It was
+again a working Streamlit app rather than a mockup, so it was unpacked, run on
+port 8598 and photographed before anything was adopted.
+
+The palette was unchanged from v1 and stands. What changed was the shell: a dark
+**ink header** carrying a permanent one-line definition, **top tabs instead of a
+sidebar** (which retires the reopen bug rather than maintaining it), a **weekly
+briefing** as screen one, and an **evidence rail** on the fix list.
+
+### The bug in the reference, and the fix
+
+**Streamlit cannot wrap its own widgets in arbitrary HTML.** The reference opens
+`<div class="navrow">`, renders its tab buttons, then closes it. Streamlit
+auto-closes the div first, so the wrapper comes out empty — its own DOM reports
+one `.navrow` holding **zero buttons**, and none of the tab styling ever applied.
+Three visible consequences in its own screenshot: tabs rendered as ordinary
+outlined buttons, the call-to-action button sat hard against the window edge, and
+a white gap tore through the red decision poster where two columns met.
+
+`st.container(key=...)` emits a real element carrying `st-key-<key>`. That was
+proved with a standalone probe before any of this file was written, and
+`eval/shoot_app.py` now asserts it on every run — the exact check the reference
+fails. The second rule that came out of this: **any block with no widget in it is
+one `st.markdown` call**, never `st.columns`, which is what removes the poster
+seam.
+
+### Two honesty decisions the user made
+
+**Owners and "Do next" actions were dropped.** The reference puts a suggested
+owner and a recommended action on every row and footnotes both as illustrative.
+There is no owner or action data in this database. That costs the design its
+"decision list" framing, and the user chose it anyway: nothing on the site should
+need a footnote saying it is invented.
+
+**The briefing reports the real week**, 17-23 Aug 2026 — 2,889 reviews, 932 of
+them 1-2 stars — named by date, because the corpus is static and a screen headed
+"this week" would be a fiction. The decision block uses the sharpest spike *on
+record* with its true date rather than manufacturing urgency for a quiet week.
+
+### Bugs found in our own work while building it
+
+- **`app/copy.py` shadowed the stdlib `copy` module**, so every screen failed
+  with `module 'copy' has no attribute 'ONE_LINER'`. Renamed to `prose.py`.
+- **The briefing named a compliment as its largest problem.** The query filtered
+  on `actionable` but not on rating, and the biggest group that week is
+  "Praise: 'good'". Now filtered to `avg_rating <= 2.5`.
+- **The movers were noise.** A floor of five reviews produced "+47%" on a base of
+  six. Raised to ten a week, and the screen now says so.
+- **The browse rail listed praise as problems** — nine of its top fourteen were
+  compliments. Filtered to the 57 complaint groups, with the 106 total stated.
+- **The active tab lagged the content by one click.** A button reports its click
+  on the same run, after the tab row has already been drawn from the old key, so
+  the content switched while the underline stayed put. Fixed with `st.rerun()`.
+- **`gap: 0`, needed to make the full-bleed bands sit flush, also collapsed the
+  spacing inside every fix-list row**, overlapping rank, title and button. Rows
+  are keyed containers with their own padding.
+- **`check_app` failed every screen on "──"**, because the stylesheet is itself
+  an `st.markdown` call and its section rules were being scanned as emoji. Style
+  blocks are now excluded, and the emoji pattern narrowed to emoji blocks — a
+  true minus sign in "−21%" is typography.
+
+### Measured, not eyeballed
+
+The reference uses `#bab6b6` for the fix-list sparklines. At **1.80:1** against
+the ground that is invisible, and a 5px mark carries no label to fall back on, so
+`spark()` uses `neutral-700` at 5.83:1 instead.
 
 ## Decisions made
 

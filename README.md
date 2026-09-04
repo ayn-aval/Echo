@@ -7,7 +7,7 @@ business team which problems are biggest, which are growing, and which spiked la
 sentence-embedding model underneath is trained from scratch, reproducing
 [Sentence-BERT (Reimers & Gurevych, 2019)](https://arxiv.org/abs/1908.10084).
 
-![The What to fix screen](results/screens/overview.png)
+![The fix list](results/screens/fix-list.png)
 
 ---
 
@@ -26,19 +26,18 @@ the other two. That is the gap this project closes.
 
 | Question a growth team asks | Where Echo answers it |
 |---|---|
-| What is hurting us most right now? | **What to fix first** — a ranked list, each with a real customer quote |
-| Which part of the business is worst? | **What to fix first** — click any area to focus the whole screen on it |
-| Did something break last week? | **What to fix first** — volume spikes against each topic's own normal range |
-| What are customers actually talking about? | **Explore complaints** — 110 topics found in the reviews themselves |
-| Is this one getting worse? | **Explore complaints** — click a topic for its week-by-week history and its reviews |
-| "What do people say about refunds?" | **Explore complaints** — search finds paraphrases, not just the word *refund* |
+| What happened last week? | **This week** — the week in a sentence, and the sharpest spike on record |
+| What is hurting us most right now? | **The fix list** — ranked over eight weeks, each row with its real reviews |
+| Which part of the business is worst? | **The fix list** — filter the whole list to one area |
+| Is this problem getting worse? | **The fix list** — each problem against its own eight-week average |
+| "What do people say about refunds?" | **Ask anything** — search finds paraphrases, not just the word *refund* |
+| Can I trust these numbers? | **Can I trust it** — what was measured, and what it gets wrong |
 
-The app opens on **Start here**, which states what it is, shows three real
-reviews that share no keyword and the one problem they were filed under, and
-sends a first-time reader to whichever of the other three screens answers their
-question.
+The app opens on **This week**, which reports the latest complete week by name,
+puts the one thing worth a decision in a red field, and shows three real reviews
+that share no keyword alongside the single problem they were filed under.
 
-![The Start here screen](results/screens/start.png)
+![This week](results/screens/this-week.png)
 
 Two findings the system surfaced that keyword counting would not have:
 

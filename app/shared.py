@@ -58,6 +58,36 @@ def sql(query: str, params: tuple | None = None) -> pd.DataFrame:
         return pd.read_sql(query, conn, params=params)
 
 
+# ── the two windows every screen answers for ────────────────────────────────
+# The briefing reports one real week; the fix list reports eight, because a
+# single week of this corpus puts only ~47 reviews behind the biggest problem
+# and shows most of them falling. Both are stated on screen rather than implied.
+WEEKS_ON_FIX_LIST = 8
+
+
+@st.cache_data(ttl=600, show_spinner=False)
+def week_start():
+    """Monday of the last COMPLETE week. theme_weekly already drops partial
+    weeks when it is built, so its maximum is the right anchor — using
+    max(reviewed_at) instead would land mid-week and undercount."""
+    with connection() as conn:
+        return pd.read_sql("SELECT max(week_start) AS w FROM theme_weekly "
+                           "WHERE model = 'sbert-domain'", conn).w.iloc[0]
+
+
+def in_week(alias: str = "r") -> str:
+    """SQL fragment: reviews inside the last complete week."""
+    start = week_start()
+    return (f" AND {alias}.reviewed_at >= '{start}'"
+            f" AND {alias}.reviewed_at < '{start}'::date + 7")
+
+
+def in_window(alias: str = "r", weeks: int = WEEKS_ON_FIX_LIST) -> str:
+    """SQL fragment: reviews inside the trailing window the fix list covers."""
+    return (f" AND {alias}.reviewed_at >= (SELECT max(reviewed_at) FROM reviews"
+            f" WHERE app='swiggy') - interval '{weeks * 7} days'")
+
+
 @st.cache_data(ttl=600, show_spinner=False)
 def csv(name: str) -> pd.DataFrame:
     """Load a table from results/. Empty frame if the phase has not run yet."""

@@ -27,14 +27,14 @@ from pathlib import Path
 BASE = "http://localhost:8501"
 OUT = Path(__file__).resolve().parents[1] / "results" / "screens"
 
-# url_path -> filename. The default page is served at "/", not at its url_path,
-# so requesting /start returns Streamlit's "Page not found" — that is normal
-# behaviour for a page registered with default=True, not a routing bug.
+# Tab label -> output filename. There are no URLs any more: navigation is a
+# session-state router with a top tab row, so a screen is reached by clicking
+# its tab rather than by visiting a path.
 SCREENS = {
-    "": "start",
-    "overview": "overview",
-    "explore": "explore",
-    "how": "how-it-works",
+    "This week": "this-week",
+    "The fix list": "fix-list",
+    "Ask anything": "ask",
+    "Can I trust it": "trust",
 }
 
 
@@ -46,41 +46,49 @@ def running() -> bool:
         return False
 
 
-def sidebar_reopens(page) -> str:
-    """Collapse the sidebar, then prove it can be opened again.
+def tabs_work(page) -> str:
+    """Every tab is present and actually switches the screen.
 
-    A regression test for a real bug: `header { visibility: hidden }` in the
-    stylesheet also hid [data-testid="stExpandSidebarButton"], which Streamlit
-    renders *inside* the header once the sidebar collapses. The menu then could
-    not be reopened at all without reloading the page, and no automated check
-    caught it — every screen still rendered, and a screenshot of the default
-    state looks perfect because the sidebar starts expanded.
+    This replaces the old sidebar collapse/reopen assertion, which went away
+    with the sidebar. The failure it guards against is the same shape: chrome
+    that renders but does not function, which no render check can see.
 
     Returns "" on success, or a description of the failure.
     """
-    collapse = page.query_selector("[data-testid='stSidebarCollapseButton'] button")
-    if not collapse:
-        return "no collapse button in the sidebar"
-    page.evaluate("e => e.click()", collapse)
-    page.wait_for_timeout(1200)
+    for label in SCREENS:
+        if not page.query_selector(f"button:has-text('{label}')"):
+            return f"no tab labelled {label!r}"
 
-    expand = page.query_selector("[data-testid='stExpandSidebarButton']")
-    if not expand:
-        return "sidebar collapsed and no reopen button exists"
-    if not expand.is_visible():
-        return "the reopen button exists but is not visible — the sidebar is a trap"
+    page.click("button:has-text('Can I trust it')")
+    page.wait_for_timeout(2500)
+    heading = page.eval_on_selector("h1", "e => e.textContent") if \
+        page.query_selector("h1") else ""
+    if "defend" not in heading.lower():
+        return f"clicking a tab did not change the screen (h1 = {heading!r})"
 
-    expand.click()                       # a real click, not a JS dispatch
-    page.wait_for_timeout(1200)
-    sidebar = page.query_selector("section[data-testid='stSidebar']")
-    if not sidebar or sidebar.bounding_box()["width"] < 100:
-        return "clicking the reopen button did not bring the sidebar back"
+    page.click("button:has-text('This week')")
+    page.wait_for_timeout(2500)
+    return ""
+
+
+def containers_wrap(page) -> str:
+    """The keyed container really does wrap its widgets.
+
+    The reference design this is built from styles its tab row by opening a
+    plain <div class="navrow">, and Streamlit closes that div before any button
+    is emitted — its own DOM reports one .navrow holding zero buttons, so the
+    tab styling never applied and nobody noticed. st.container(key=...) is the
+    supported way; this asserts it is still working rather than assuming it.
+    """
+    n = page.eval_on_selector_all(".st-key-tabs .stButton", "e => e.length")
+    if n < 4:
+        return f".st-key-tabs wraps {n} buttons, expected 4"
     return ""
 
 
 def main() -> None:
     wanted = sys.argv[1:]
-    screens = {p: n for p, n in SCREENS.items() if not wanted or n in wanted or p in wanted}
+    screens = {p: n for p, n in SCREENS.items() if not wanted or n in wanted}
     if not screens:
         raise SystemExit(f"No screen matched {wanted}. Known: {sorted(SCREENS.values())}")
 
@@ -102,24 +110,24 @@ def main() -> None:
         page = browser.new_page(viewport={"width": 1600, "height": 3000},
                                 device_scale_factor=1)
         page.goto(BASE, wait_until="networkidle")
-        page.wait_for_selector("[data-testid='stAppViewContainer'] h1", timeout=60000)
-        page.wait_for_timeout(2500)
-        problem = sidebar_reopens(page)
-        print(f"  {'FAIL' if problem else ' ok '} sidebar closes and reopens"
-              f"{'  — ' + problem if problem else ''}")
-        if problem:
-            raise SystemExit(1)
+        page.wait_for_selector(".ink", timeout=60000)
+        page.wait_for_timeout(3000)
 
-        for path, name in screens.items():
-            page.goto(f"{BASE}/{path}", wait_until="networkidle")
+        for check in (containers_wrap, tabs_work):
+            problem = check(page)
+            label = {"containers_wrap": "keyed containers wrap their widgets",
+                     "tabs_work": "every tab is present and switches screen"}[check.__name__]
+            print(f"  {'FAIL' if problem else ' ok '} {label}"
+                  f"{'  — ' + problem if problem else ''}")
+            if problem:
+                raise SystemExit(1)
+
+        for label, name in screens.items():
+            page.click(f"button:has-text('{label}')")
             # Streamlit streams the page over a websocket after the shell loads,
             # so "document ready" is far too early — wait for real content, then
             # let charts finish drawing.
-            try:
-                page.wait_for_selector("[data-testid='stAppViewContainer'] h1",
-                                       timeout=60000)
-            except Exception:                                    # noqa: BLE001
-                print(f"  {name}: no heading appeared — capturing anyway")
+            page.wait_for_timeout(1500)
             page.wait_for_timeout(4500)
             shot = OUT / f"{name}.png"
             page.screenshot(path=str(shot), full_page=True)
