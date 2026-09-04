@@ -11,7 +11,8 @@ import plotly.graph_objects as go
 import streamlit as st
 from shared import csv, sql
 
-design.appbar("About", "How it works")
+design.appbar("How it works",
+              "How the system reads reviews, and how often it is right")
 
 base = csv("baselines.csv")
 ret = base[base.task == "retrieval"] if "task" in base.columns else base
@@ -29,7 +30,7 @@ design.hero(
     side=(f"Simple word matching gets <b>{float(prec.get('tfidf', 0)) / 10:.1f}</b>"
           f"<br>Every number here comes from a script in <b>eval/</b>"))
 
-st.markdown("## What it does")
+st.markdown("## The three things it does")
 STEPS = [
     ("Reads every review", "100,000 reviews, including Hindi and Hinglish."),
     ("Groups them by meaning", "“App keeps crashing” and “closes by itself” "

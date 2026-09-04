@@ -14,7 +14,10 @@ import plotly.graph_objects as go
 import shared
 from shared import MODEL, sql, st
 
-design.appbar("Explore", "What customers say")
+design.appbar("Topics & search", "What customers are talking about")
+
+K = 25          # how many reviews a search returns
+
 
 F = st.session_state["filters"]
 TOPIC = "topic"
@@ -26,19 +29,41 @@ query = st.text_input("Search", placeholder="Search reviews by meaning — "
 if query:
     shared.get_search()
     from src.search.query import search
-    hits = search(query, k=25)
-    best = hits.iloc[0]
+    hits = search(query, k=K)
+
+    # The headline number must not be a restatement of K. `len(hits)` is always
+    # 25 because that is what was asked for, and summing n_rows is nearly the
+    # same — matched texts are almost always distinct. How many of those closest
+    # reviews came from *unhappy* customers is a real answer to "is this a sore
+    # point", so the stars are fetched and counted.
+    stars = sql("""SELECT review_id, score AS stars, reviewed_at::date AS date
+                     FROM reviews WHERE app = 'swiggy' AND review_id = ANY(%s)""",
+                (list(hits.review_id),))
+    hits = hits.merge(stars, on="review_id", how="left")
+    unhappy = int((hits.stars <= 2).sum())
+
+    # The hero deliberately does NOT quote the top hit. Precision here is about
+    # 7.6 in 10, so roughly one search in four opens on a review that plainly
+    # does not match, which reads as a broken feature even when the other 24
+    # rows are right. Stating what the whole result set is worth is both more
+    # useful and more honest; every review, rank 1 included, is in the table.
     design.hero(
-        eyebrow=f"Closest match for “{query}”",
-        headline=f"“{' '.join(str(best.content).split())[:150]}”",
-        value=f"{len(hits)}",
-        unit="matching reviews",
-        side="Reviews that <b>mean</b> the same thing,<br>even in different words.")
+        eyebrow="Searched by meaning",
+        headline=f"The {len(hits)} reviews closest in meaning to “{query}”",
+        value=f"{unhappy}",
+        unit=f"of the {len(hits)} are from unhappy customers",
+        side=(f"They average <b>{hits.stars.mean():.1f}</b> out of 5<br>"
+              f"Matched on meaning, so reviews that say<br>"
+              f"this in other words are here too."))
+
+    st.markdown("### The closest reviews, nearest first")
     st.dataframe(
-        hits[["rank", "score", "content"]], hide_index=True, width="stretch",
-        height=460,
+        hits[["rank", "stars", "date", "score", "content"]], hide_index=True,
+        width="stretch", height=460,
         column_config={
             "rank": st.column_config.NumberColumn("#", width="small"),
+            "stars": st.column_config.NumberColumn("Stars", width="small"),
+            "date": st.column_config.DateColumn("Date", width="small"),
             "score": st.column_config.ProgressColumn("How close", min_value=0.0,
                                                      max_value=1.0),
             "content": "Review"})
@@ -78,6 +103,7 @@ else:
         unit="customers said it",
         side=f"Rated <b>{row.avg_rating:.1f}</b> out of 5")
 
+    st.markdown("### How often this comes up, week by week")
     week = sql("""SELECT week_start, reviews FROM theme_weekly
                    WHERE model=%s AND theme_id=%s ORDER BY week_start""",
                (MODEL, int(row.theme_id)))
@@ -105,6 +131,9 @@ else:
              WHERE rt.model = %s AND rt.theme_id = %s
              ORDER BY rt.strength DESC LIMIT 300) typical
          ORDER BY word_count DESC LIMIT 100""", (MODEL, int(row.theme_id)))
+    st.markdown("### What customers actually wrote")
+    design.note("The 100 most detailed of the reviews the system placed in this "
+                "topic.")
     st.dataframe(reviews, hide_index=True, width="stretch", height=340,
                  column_config={
                      "stars": st.column_config.NumberColumn("Stars", width="small"),
@@ -115,13 +144,15 @@ else:
         st.session_state[TOPIC] = None
         st.rerun()
 
-st.markdown("## Most talked about")
-design.note("Click a bar to open it.")
+st.markdown("## Every topic customers raised")
+design.note("Found in the reviews themselves — no one wrote this list. Bar "
+            "length is how many customers raised it; red means they rated it "
+            "badly, blue means well. Click a bar to open it.")
 
-view = st.radio("Show", ["Complaints", "Praise", "Everything"],
+view = st.radio("Show", ["Complaints only", "Praise only", "Everything"],
                 horizontal=True, label_visibility="collapsed")
-subset = {"Complaints": complaints,
-          "Praise": themes[themes.avg_rating >= 4.0],
+subset = {"Complaints only": complaints,
+          "Praise only": themes[themes.avg_rating >= 4.0],
           "Everything": themes}[view].nlargest(12, "n_rows")
 
 clicked = design.click_bars(

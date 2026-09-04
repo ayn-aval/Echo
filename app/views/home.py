@@ -16,7 +16,7 @@ from shared import ALL_REVIEWS, sql
 F = st.session_state["filters"]
 h = insights.headline_health()
 
-design.appbar("Overview", "Where to improve",
+design.appbar("What to fix", "Where you are losing customers",
               right=f"To <b>{h['latest']:%d %b %Y}</b> &nbsp;·&nbsp; {F.label}")
 
 # ── every business area, now and in the period before ───────────────────────
@@ -42,7 +42,7 @@ focus = areas[areas.area == picked] if picked else areas
 top = (focus.iloc[0] if not focus.empty else areas.iloc[0])
 
 design.hero(
-    eyebrow=f"{F.period} · {'selected area' if picked else 'biggest opportunity'}",
+    eyebrow=f"{F.period} · {'selected area' if picked else 'biggest problem area'}",
     headline=f"{top.area} is where you are losing people",
     value=f"{top.unhappy:,}",
     unit="unhappy customers",
@@ -59,7 +59,10 @@ alerts = sql(f"""
        AND a.week_start >= (SELECT max(week_start) FROM theme_alerts) - 28
      ORDER BY a.z DESC NULLS LAST LIMIT 3""")
 if not alerts.empty:
-    st.markdown("## Suddenly worse")
+    st.markdown("## Problems that spiked in the last 4 weeks")
+    design.note("A topic that drew far more reviews in one week than it "
+                "normally does. Three rising together is usually one incident, "
+                "not three.")
     for r in alerts.itertuples():
         times = (r.reviews / float(r.baseline_mean)) if r.baseline_mean else 0
         detail = (f"<b>{r.reviews}</b> reviews that week against a usual "
@@ -76,6 +79,8 @@ if not alerts.empty:
 
 # ── what to do ──────────────────────────────────────────────────────────────
 st.markdown("## Fix these first")
+design.note("Ranked by how many customers raised it, how unhappy they were, "
+            "and whether it is growing.")
 
 top_issues = insights.priorities(limit=4, areas=F.areas, days=F.days)
 if top_issues.empty:
@@ -93,11 +98,13 @@ else:
             f"<div class='meta'>{r.why}</div>"
             f"<div class='quote'>“{' '.join(str(r.content).split())[:170]}…”</div>"
             f"</div></div>", unsafe_allow_html=True)
-    st.page_link("views/issues.py", label="Explore every topic")
+    st.page_link("views/issues.py", label="See every topic")
 
 # ── the clickable breakdown ─────────────────────────────────────────────────
-st.markdown("## Unhappy customers by area")
-design.note("Click a bar to focus the whole screen on that area.")
+st.markdown("## Which part of the business is worst")
+design.note("Customers who gave 1 or 2 stars, counted by the part of the "
+            "business their review is about. Click a bar to focus this whole "
+            "screen on that area.")
 
 clicked = design.click_bars(
     [(r.area, int(r.unhappy),
@@ -114,11 +121,13 @@ if picked:
         st.rerun()
 
 # ── the health behind it, for anyone who wants it ───────────────────────────
-st.markdown("## Ratings overall")
-design.note(f"Every one of the {h['reviews']:,} reviews, whatever the period above.")
+st.markdown("## How customers rate the app")
+design.note(f"All {h['reviews']:,} reviews. These two are deliberately not "
+            "affected by the time period in the menu.")
 
 left, right = st.columns([2, 3], gap="large")
 with left:
+    st.markdown("### Stars people gave")
     stars = sql(f"""SELECT score, count(*) AS reviews FROM reviews
                      WHERE {ALL_REVIEWS} GROUP BY score ORDER BY score""")
     colours = [design.NEGATIVE if v <= 2 else design.NEUTRAL if v == 3
@@ -134,6 +143,7 @@ with left:
                     width="stretch", config={"displayModeBar": False})
 
 with right:
+    st.markdown("### Average rating over time")
     daily = sql(f"""SELECT reviewed_at::date AS day, avg(score) AS rating
                       FROM reviews WHERE {ALL_REVIEWS} GROUP BY 1 ORDER BY 1""")
     daily["smooth"] = daily.rating.rolling(14, min_periods=1).mean()

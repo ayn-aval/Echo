@@ -7,7 +7,7 @@ business team which problems are biggest, which are growing, and which spiked la
 sentence-embedding model underneath is trained from scratch, reproducing
 [Sentence-BERT (Reimers & Gurevych, 2019)](https://arxiv.org/abs/1908.10084).
 
-![The Overview screen](results/screens/overview.png)
+![The What to fix screen](results/screens/overview.png)
 
 ---
 
@@ -26,12 +26,17 @@ the other two. That is the gap this project closes.
 
 | Question a growth team asks | Where Echo answers it |
 |---|---|
-| What is hurting us most right now? | **Overview** — a ranked list, each with a real customer quote |
-| Which part of the business is worst? | **Overview** — click any area to focus the whole screen on it |
-| Did something break last week? | **Overview** — volume spikes against each topic's own normal range |
-| What are customers actually talking about? | **Explore** — 110 topics found in the reviews themselves |
-| Is this one getting worse? | **Explore** — click a topic for its week-by-week history and its reviews |
-| "What do people say about refunds?" | **Explore** — search finds paraphrases, not just the word *refund* |
+| What is hurting us most right now? | **What to fix** — a ranked list, each with a real customer quote |
+| Which part of the business is worst? | **What to fix** — click any area to focus the whole screen on it |
+| Did something break last week? | **What to fix** — volume spikes against each topic's own normal range |
+| What are customers actually talking about? | **Topics & search** — 110 topics found in the reviews themselves |
+| Is this one getting worse? | **Topics & search** — click a topic for its week-by-week history and its reviews |
+| "What do people say about refunds?" | **Topics & search** — search finds paraphrases, not just the word *refund* |
+
+The app opens on **Start here**, which states what it is and sends a first-time
+reader to whichever of the three screens answers their question.
+
+![The Start here screen](results/screens/start.png)
 
 Two findings the system surfaced that keyword counting would not have:
 

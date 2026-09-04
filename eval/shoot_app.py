@@ -28,10 +28,11 @@ BASE = "http://localhost:8501"
 OUT = Path(__file__).resolve().parents[1] / "results" / "screens"
 
 # url_path -> filename. The default page is served at "/", not at its url_path,
-# so requesting /overview returns Streamlit's "Page not found" — that is normal
+# so requesting /start returns Streamlit's "Page not found" — that is normal
 # behaviour for a page registered with default=True, not a routing bug.
 SCREENS = {
-    "": "overview",
+    "": "start",
+    "overview": "overview",
     "explore": "explore",
     "how": "how-it-works",
 }
@@ -43,6 +44,38 @@ def running() -> bool:
         return True
     except (urllib.error.URLError, OSError):
         return False
+
+
+def sidebar_reopens(page) -> str:
+    """Collapse the sidebar, then prove it can be opened again.
+
+    A regression test for a real bug: `header { visibility: hidden }` in the
+    stylesheet also hid [data-testid="stExpandSidebarButton"], which Streamlit
+    renders *inside* the header once the sidebar collapses. The menu then could
+    not be reopened at all without reloading the page, and no automated check
+    caught it — every screen still rendered, and a screenshot of the default
+    state looks perfect because the sidebar starts expanded.
+
+    Returns "" on success, or a description of the failure.
+    """
+    collapse = page.query_selector("[data-testid='stSidebarCollapseButton'] button")
+    if not collapse:
+        return "no collapse button in the sidebar"
+    page.evaluate("e => e.click()", collapse)
+    page.wait_for_timeout(1200)
+
+    expand = page.query_selector("[data-testid='stExpandSidebarButton']")
+    if not expand:
+        return "sidebar collapsed and no reopen button exists"
+    if not expand.is_visible():
+        return "the reopen button exists but is not visible — the sidebar is a trap"
+
+    expand.click()                       # a real click, not a JS dispatch
+    page.wait_for_timeout(1200)
+    sidebar = page.query_selector("section[data-testid='stSidebar']")
+    if not sidebar or sidebar.bounding_box()["width"] < 100:
+        return "clicking the reopen button did not bring the sidebar back"
+    return ""
 
 
 def main() -> None:
@@ -66,8 +99,17 @@ def main() -> None:
         # A tall viewport, not full_page: Streamlit scrolls an inner container
         # rather than the document, so full_page captures only the first screen
         # and silently crops everything below it.
-        page = browser.new_page(viewport={"width": 1600, "height": 2400},
+        page = browser.new_page(viewport={"width": 1600, "height": 3000},
                                 device_scale_factor=1)
+        page.goto(BASE, wait_until="networkidle")
+        page.wait_for_selector("[data-testid='stAppViewContainer'] h1", timeout=60000)
+        page.wait_for_timeout(2500)
+        problem = sidebar_reopens(page)
+        print(f"  {'FAIL' if problem else ' ok '} sidebar closes and reopens"
+              f"{'  — ' + problem if problem else ''}")
+        if problem:
+            raise SystemExit(1)
+
         for path, name in screens.items():
             page.goto(f"{BASE}/{path}", wait_until="networkidle")
             # Streamlit streams the page over a websocket after the shell loads,

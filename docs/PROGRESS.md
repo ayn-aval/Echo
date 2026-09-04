@@ -13,7 +13,7 @@
 | 4 — Domain adaptation | **done. Precision@10 45.77 -> 61.15, STS 72.17 -> 74.54** |
 | 5 — Theme discovery | **done. 110 themes; audit 82.4% vs GloVe's 44.1%** |
 | 6 — Semantic search | **done. 75.77 P@10 two-stage — first system to beat TF-IDF** |
-| 7 — Streamlit dashboard | **done. 7 screens, redesigned; `streamlit run app/main.py`** |
+| 7 — Streamlit dashboard | **done. 4 screens, redesigned twice; `streamlit run app/main.py`** |
 | 8 — Trends and alerts | **done. 16 alerts at z>=3; Power BI guide written** |
 | 9 — Write-up and polish | **done. README, cleanup, traceability check** |
 
@@ -607,6 +607,65 @@ their orphaned CSS, plus `load_all` in `eval/sts_data.py`. `requirements.txt` is
 fully pinned, including `numpy` — imported directly, previously arriving only via
 pandas — and `playwright==1.62.0`.
 
+## Second usability pass — the app now explains itself
+
+The user's report: *"Once I close the sidebar, I am not able to open it back...
+It is not able to convey the idea it is supposed to show... The labels are so
+vague that it is not making any sense... If you can provide an opening page, that
+would be more helpful."* Three separate problems, one of them a real bug.
+
+### The sidebar was a trap, and no existing check could have caught it
+
+`app/design.py` carried `#MainMenu, footer, header { visibility: hidden; }` —
+boilerplate copied into most Streamlit apps to remove the Deploy button. When the
+sidebar is collapsed, Streamlit 1.62 renders the reopen control as
+`[data-testid="stExpandSidebarButton"]` **inside `<header data-testid="stHeader">`**.
+Hiding the header hid it too. Confirmed with Playwright: after a collapse the
+button sits at (67, 16) with `visibility: hidden`, and a sweep of the top-left
+300x120 region returns **zero visible buttons**. Reloading the page was the only
+way back.
+
+The first attempted fix — hide `[data-testid="stToolbar"]` instead — **failed the
+same way**, because the reopen button is nested three divs inside the toolbar.
+The working fix hides only `[data-testid="stToolbarActions"]` and
+`[data-testid="stAppDeployButton"]`, leaving both the header and the toolbar in
+place, and gives the reopen button card styling so it reads as a control.
+
+Why nothing caught it: `eval/check_app.py` renders every screen and they all
+rendered; `eval/shoot_app.py` photographs the default state, where the sidebar
+starts expanded and everything looks perfect. The bug only exists in a state no
+check ever entered. `eval/shoot_app.py` now has `sidebar_reopens()`, which
+collapses the sidebar, asserts the reopen button is visible, clicks it for real,
+and asserts the sidebar comes back. It fails loudly if the CSS regresses.
+
+### A fourth screen, "Start here"
+
+Every other screen assumed the reader already knew whose reviews these are and
+what was done to them. `app/views/start.py` is the default page now: a hero
+stating the corpus and its span, three cards naming the questions the app answers
+(each linking to the screen that answers it), and three numbered steps describing
+what the system actually does. No controls, nothing to interpret, under 200 words.
+Every figure on it is queried, not typed, so it cannot go stale.
+
+It deliberately reports **106 topics, not 110** — the browsable count after the
+four non-actionable groups are excluded — so the opening screen agrees with the
+screen it links to. "How it works" remains the one place that names the four.
+
+### Labels now say what the thing is
+
+Navigation titles name a question rather than a location: Overview -> **What to
+fix**, Explore -> **Topics & search**. Section headings followed: "Suddenly worse"
+-> "Problems that spiked in the last 4 weeks", "Ratings overall" -> "How
+customers rate the app", "Most talked about" -> "Every topic customers raised".
+The two rating charts on What to fix had **no titles at all** and now have them.
+
+One label was not just vague but wrong: the search screen's headline number was
+`len(hits)`, which is always 25 because that is the `k` passed to `search()`. It
+now sums `n_rows` — how many people actually wrote something that close.
+
+`url_path` values were left unchanged, so existing links and the screenshot
+filenames in the README still resolve.
+
 ## Decisions made
 
 | decision | why |
@@ -688,9 +747,16 @@ that reads like a code bug. Restart the server after touching anything under
 
 ## Exact next step
 
-**Phase 8 is complete.** Next is **Phase 9 — write-up and polish**: the README
-with the problem, a dashboard screenshot, the results tables, how to run it, and
-honest limitations. Material is in `results/phase{3,4,5,6}_notes.md`.
+**Phase 9 is complete, and the app has had two usability passes.** Nothing is
+blocking. The one unfinished piece of *delivery* is the **Streamlit Community
+Cloud deploy**, which last failed on Python 3.14 resolving `requirements.txt`;
+the app must be deleted and recreated with Python 3.11 chosen in Advanced
+settings before the first build, with the secret from `.streamlit/secrets.toml`.
+Once it is live, its URL goes in the README.
+
+**Three credentials were pasted into chat and should be rotated:** the Hugging
+Face write token named `Echo` (highest priority), the Neon `neondb_owner`
+password, and the `echo_readonly` password.
 
 Still outstanding:
 - **Phase 4b**, the pair-source ablation — `notebooks/phase4b_ablation_kaggle.ipynb`,

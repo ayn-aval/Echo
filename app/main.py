@@ -24,11 +24,20 @@ st.set_page_config(page_title="Echo — customer feedback intelligence",
                    initial_sidebar_state="expanded")
 design.boot()
 
-# Three screens, ungrouped. Seven needed Monitor/Understand/About headings to be
-# navigable; three do not, and the headings were themselves something to read.
+# Four screens, ungrouped. Seven needed Monitor/Understand/About headings to be
+# navigable; four do not, and the headings were themselves something to read.
+#
+# "Start here" carries no controls and no figure that needs interpreting. It
+# exists because every other screen assumes the reader already knows whose
+# reviews these are and what was done to them, and a first-time visitor does not.
+#
+# Titles name what the screen answers rather than where it sits: "Overview" and
+# "Explore" describe a location, "What to fix" describes a question. url_paths
+# are unchanged so existing links keep resolving.
 PAGES = [
-    st.Page("views/home.py", title="Overview", url_path="overview", default=True),
-    st.Page("views/issues.py", title="Explore", url_path="explore"),
+    st.Page("views/start.py", title="Start here", url_path="start", default=True),
+    st.Page("views/home.py", title="What to fix", url_path="overview"),
+    st.Page("views/issues.py", title="Topics & search", url_path="explore"),
     st.Page("views/accuracy.py", title="How it works", url_path="how"),
 ]
 

@@ -64,7 +64,36 @@ CSS = f"""
 <style>
   .stApp {{ background: {PLANE}; }}
   html, body, [class*="css"] {{ font-family: {FONT}; -webkit-font-smoothing: antialiased; }}
-  #MainMenu, footer, header {{ visibility: hidden; }}
+  /* Hide the toolbar, NOT the header.
+     `header {{ visibility: hidden }}` was here and it broke the app: when the
+     sidebar is collapsed Streamlit renders the reopen control as
+     [data-testid="stExpandSidebarButton"] *inside* <header data-testid="stHeader">,
+     so hiding the header left no way at all to bring the menu back — the button
+     was present at (67,16) and invisible, and nothing else in that corner was
+     clickable. Reloading the page was the only escape.
+
+     The button is nested inside [data-testid="stToolbar"] too, so hiding the
+     toolbar reproduces the same trap one level down — that was the first
+     attempted fix and it failed the same way. Hide only the toolbar's action
+     group, which is the Deploy button and the overflow menu, and leave both the
+     header and the toolbar in place. */
+  #MainMenu, footer, [data-testid="stToolbarActions"],
+  [data-testid="stAppDeployButton"], [data-testid="stDecoration"],
+  [data-testid="stStatusWidget"] {{ display: none !important; }}
+  header[data-testid="stHeader"] {{ background: transparent !important; }}
+  [data-testid="stExpandSidebarButton"] {{ visibility: visible !important;
+      background:{SURFACE}; border:1px solid {LINE}; border-radius:9px;
+      box-shadow:{SHADOW}; color:{INK_2}; }}
+  [data-testid="stExpandSidebarButton"]:hover {{ background:{SUNK};
+      border-color:{AXIS}; color:{INK}; }}
+  /* When the sidebar collapses Streamlit moves the brand mark into the header,
+     where it lands on top of the page's own "ECHO" label. The sidebar already
+     carries the brand, so the collapsed state only needs the reopen button. */
+  [data-testid="stHeaderLogo"] {{ display:none !important; }}
+  /* The collapse control inside the sidebar is hover-only by default, which
+     hides the fact that the menu can be closed at all. Keep it always visible. */
+  [data-testid="stSidebarCollapseButton"] {{ opacity:1 !important;
+      visibility:visible !important; }}
   .block-container {{ padding: 1.5rem 2.4rem 5rem; max-width: 1480px; }}
   :focus-visible {{ outline: 2px solid {BLUE}; outline-offset: 2px; border-radius: 6px; }}
 
@@ -139,6 +168,17 @@ CSS = f"""
   .issue .quote {{ color:{INK_2}; font-size:.83rem; margin-top:11px;
                   background:{SUNK}; border-left:3px solid {AXIS};
                   border-radius:0 8px 8px 0; padding:9px 13px; line-height:1.55; }}
+
+  /* ── numbered steps, used by the opening screen ──────────────────────── */
+  .step {{ background:{SURFACE}; border:1px solid {LINE}; border-radius:14px;
+          padding:20px 22px; height:100%; box-shadow:{SHADOW}; }}
+  .step .n {{ display:inline-flex; align-items:center; justify-content:center;
+             width:27px; height:27px; border-radius:8px; margin-bottom:12px;
+             background:rgba(42,120,214,.10); color:{BLUE};
+             font-size:.82rem; font-weight:740; {NUM} }}
+  .step h4 {{ margin:0 0 6px; font-size:1rem; font-weight:660; color:{INK}; }}
+  .step p {{ margin:0; color:{INK_2}; font-size:.88rem; line-height:1.55; }}
+  .step em {{ color:{INK}; font-style:normal; font-weight:600; }}
 
   .badge {{ display:inline-block; padding:3px 9px; border-radius:6px;
            font-size:.68rem; font-weight:720; letter-spacing:.045em;

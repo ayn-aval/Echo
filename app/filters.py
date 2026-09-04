@@ -62,7 +62,8 @@ def bar() -> Filters:
     st.session_state.setdefault("period", DEFAULT_PERIOD)
 
     with st.sidebar:
-        st.markdown("<div class='filter-head'>Period</div>", unsafe_allow_html=True)
+        st.markdown("<div class='filter-head'>Time period</div>",
+                    unsafe_allow_html=True)
         # `key` alone: session_state already holds the value, and passing index as
         # well makes Streamlit warn that the default will be ignored.
         period = st.selectbox("Period", list(PERIODS), key="period",
@@ -73,6 +74,9 @@ def bar() -> Filters:
 
     with st.sidebar:
         st.markdown(f"<div class='sidenote'>Swiggy · Google Play<br>"
-                    f"Showing {current.label}</div>", unsafe_allow_html=True)
+                    f"Showing {current.label}<br><br>"
+                    f"Changes what <b>What to fix</b> counts. The rating charts "
+                    f"always use all 100,000 reviews.</div>",
+                    unsafe_allow_html=True)
 
     return current
