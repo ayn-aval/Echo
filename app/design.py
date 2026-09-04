@@ -146,6 +146,9 @@ CSS = f"""
   .st-key-searchbox {{ padding-top:16px; }}
   .st-key-searchbox .stButton {{ margin-top:10px; }}
   .st-key-tech {{ padding:0 48px 44px; }}
+  /* The reference leaves its hero buttons hard against the window edge,
+     because a markdown <div> cannot wrap them. A keyed container can. */
+  .st-key-herobtns {{ padding:0 48px; }}
   .stTextInput input {{ background:{SURFACE}; border:1px solid {DIVIDER};
       font-size:16px; color:{INK}; min-height:46px; padding:11px 14px; }}
   .stTextInput input:focus {{ border-color:{ACCENT}; box-shadow:none; }}

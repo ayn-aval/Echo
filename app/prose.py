@@ -13,7 +13,7 @@ from shared import week_start
 
 ONE_LINER = ("Reads every Google Play review of the Swiggy app and ranks the "
              "problems customers actually hit — so you know what to fix on "
-             "Monday without reading 13,800 reviews a month.")
+             "Monday without reading 13,800 reviews.")
 
 
 HEADER_META = "100,000 reviews<br>18 Jan – 26 Aug 2026"
@@ -34,18 +34,13 @@ def dateline() -> str:
 
 SCOPE_FOOTNOTES = [
     "<b>Scope:</b> Google Play only, 18 Jan – 26 Aug 2026, 100,000 reviews.",
-    "<b>Reviewers skew angry</b> — these counts measure noise, not how many "
-    "customers were affected.",
+    "<b>Reviewers skew angry</b> — counts measure noise, not affected customers.",
     "<b>Portfolio project</b> on public data. Not an internal Swiggy tool.",
 ]
 
 FIVE_MINUTES = [
-    "Walk into standup with the top three problems and the review count behind "
-    "each one.",
-    "Check whether last sprint's fix moved its number, on that problem's own "
-    "weekly line.",
-    "Pull verbatim quotes for a deck by searching on meaning, not by guessing "
-    "keywords.",
-    "Find out a problem has spiked from this screen, rather than from the store "
-    "rating a month later.",
+    "Take the top three problems into standup, with the counts behind them.",
+    "Check whether last sprint's fix moved its weekly line.",
+    "Pull verbatim quotes for a deck by searching on meaning.",
+    "Hear about a spike here, not from the store rating a month later.",
 ]

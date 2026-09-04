@@ -54,33 +54,34 @@ def render() -> None:
     # ── verdict and the two numbers ─────────────────────────────────────────
     left, right = st.columns([1, 0.45], gap="small")
     with left:
-        head = (f"{int(wk.unhappy):,} of last week's {int(wk.reviews):,} "
-                f"reviewers were unhappy.")
-        body = (f"The largest single problem was “{clean(top['name'].iloc[0])}”, "
-                f"raised by <b>{int(top.reviews.iloc[0])}</b> of them."
+        head = (f"{int(wk.reviews):,} people reviewed Swiggy last week. "
+                f"{int(wk.unhappy):,} were unhappy.")
+        body = (f"“{clean(top['name'].iloc[0])}” was the biggest single "
+                f"complaint — <b>{int(top.reviews.iloc[0])}</b> of them."
                 if not top.empty else "")
         design.html(f'<div class="pad"><div class="kicker">'
                     f'The week in one sentence</div>'
                     f'<div class="verdict">{head}</div>'
                     f'<p class="lede">{body}</p></div>')
-        a, b, _ = st.columns([1.2, 1.4, 1.1])
-        with a:
-            if st.button("Open the fix list  →", type="primary", key="go_fix"):
-                st.session_state["screen"] = "fix"
-                st.rerun()
-        with b:
-            if st.button("Read the actual reviews", key="go_ask"):
-                st.session_state["screen"] = "ask"
-                st.rerun()
+        with st.container(key="herobtns"):
+            a, b, _ = st.columns([1.3, 1.5, 0.9])
+            with a:
+                if st.button("Open the fix list  →", type="primary",
+                             key="go_fix"):
+                    st.session_state["screen"] = "fix"
+                    st.rerun()
+            with b:
+                if st.button("Read the actual reviews", key="go_ask"):
+                    st.session_state["screen"] = "ask"
+                    st.rerun()
         design.html('<div style="height:30px"></div>')
     with right:
         for number, label in (
             (f"{share:.0f}%",
-             f"of last week's reviews were 1 or 2 stars — "
-             f"{int(wk.unhappy):,} unhappy customers."),
+             f"of last week's reviews were 1 or 2 stars."),
             (f"{float(wk.rating):.1f}",
-             f"average stars last week, against {float(prior):.1f} over the "
-             f"four weeks before it."),
+             f"average stars last week, against {float(prior):.1f} the month "
+             f"before."),
         ):
             design.html(
                 '<div style="padding:24px 32px;'
@@ -109,12 +110,10 @@ def render() -> None:
              ORDER BY rt.strength DESC LIMIT 1""", (MODEL, int(s.theme_id)))
         design.poster(
             kicker="The sharpest jump on record",
-            head=(f"“{clean(s['name'])}” ran at {times:.1f} times its normal "
+            head=(f"“{clean(s['name'])}” hit {times:.1f} times its normal "
                   f"rate in the week of {s.week_start:%d %B}."),
-            body=(f"{s.reviews} reviews that week against about "
-                  f"{s.baseline_mean:.0f} in a normal one, in "
-                  f"{clean(s.category).lower()}. Every problem is compared "
-                  f"against its own history, never against other problems."),
+            body=(f"{s.reviews} reviews that week, against about "
+                  f"{s.baseline_mean:.0f} in a normal one."),
             side_kicker="What one of them said",
             side=(f"“{clean(quote.content.iloc[0], 190)}”"
                   if not quote.empty else ""))
@@ -125,9 +124,8 @@ def render() -> None:
         '<div style="padding:30px 48px 14px;display:flex;align-items:baseline;'
         'gap:16px;flex-wrap:wrap"><h2 style="font-size:25px">What moved last '
         'week</h2><span style="font-size:13px;color:' + design.MUTED + '">'
-        "each problem against its own eight-week average, never against other "
-        "problems. Only problems averaging ten or more reviews a week — below "
-        "that a percentage swing is noise.</span></div>")
+        "each against its own eight-week average · ten reviews a week "
+        "minimum</span></div>")
 
     movers = sql("""
         WITH norm AS (
@@ -157,7 +155,7 @@ def render() -> None:
                 f'<span style="font-size:12px;color:{design.MUTED}">'
                 f'{int(m.reviews)} reviews</span></div>'
                 f'<div class="mover-t">{clean(m.name)}</div>'
-                f'<div class="mover-s">{clean(m.category)} · usually about '
+                f'<div class="mover-s">{clean(m.category)} · usually '
                 f'{float(m.usual):.0f} a week</div></div>')
     design.rule()
 
@@ -183,12 +181,10 @@ def render() -> None:
         design.html(
             '<div style="padding:32px 44px 36px 48px">'
             '<h3 style="font-size:21px;margin-bottom:10px !important">Why a '
-            "keyword report would have missed this</h3>"
+            "keyword report would miss this</h3>"
             '<p class="sub" style="margin-bottom:18px">Customers never use your '
-            "words. These three real reviews share almost nothing on the page, "
-            "and Echo counts all three against one problem — which is why that "
-            f"problem shows {size:,} reviews and not a fraction of it.</p>"
-            f"{chips}</div>")
+            "words. These three share no keyword. Echo files all three under "
+            f"one problem — {size:,} reviews.</p>{chips}</div>")
     with b:
         steps = "".join(f'<div class="step"><b>{i:02d}</b><span>{s}</span></div>'
                         for i, s in enumerate(prose.FIVE_MINUTES, 1))

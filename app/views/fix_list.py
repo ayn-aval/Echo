@@ -48,10 +48,9 @@ def render() -> None:
         '<div style="padding:32px 48px 14px">'
         '<h1 style="font-size:38px;margin-bottom:8px !important">The fix '
         "list</h1>"
-        f'<p class="sub">Every problem customers raised in the last '
-        f"{WEEKS_ON_FIX_LIST} weeks, ranked by how many people hit it, how "
-        "badly they rated it, and whether it is growing. Click a row for the "
-        "reviews behind it.</p></div>")
+        f'<p class="sub">Every problem from the last {WEEKS_ON_FIX_LIST} '
+        "weeks, ranked by how many people hit it. Click a row for the reviews "
+        "behind it.</p></div>")
     with st.container(key="chips"):
         cols = st.columns([1] * len(areas) + [max(1, 8 - len(areas))])
         for col, name in zip(cols, areas):
@@ -126,18 +125,16 @@ def render() -> None:
                     design.html(
                         f'<div class="{cls}" style="font-size:18px;'
                         f'text-align:right">{move}</div>'
-                        '<div class="rlab" style="text-align:right">vs the '
-                        "eight weeks before</div>"
+                        '<div class="rlab" style="text-align:right">vs 8 '
+                        "weeks before</div>"
                         '<div style="display:flex;justify-content:flex-end;'
                         'margin-top:4px">'
                         + design.spark(weeks, width=6) + "</div>")
 
         design.html(
             f'<div style="padding:16px 48px;font-size:12px;color:{design.FAINT}">'
-            "“vs the eight weeks before” compares this window against the same "
-            "problem over the window before it. Nothing on this row is "
-            "estimated — counts, ratings and quotes all come from the reviews."
-            "</div>")
+            "“vs the eight weeks before” is each problem against its own "
+            "previous window.</div>")
 
     # ── the evidence rail ───────────────────────────────────────────────────
     with evidence:

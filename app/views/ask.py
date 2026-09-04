@@ -42,7 +42,7 @@ def render() -> None:
         '<div style="padding:34px 48px 6px">'
         '<h1 style="font-size:38px;max-width:26ch;margin-bottom:10px !important">'
         "Ask it the way a customer would say it</h1>"
-        '<p class="sub">You do not have to guess the words in the review. '
+        '<p class="sub">You don’t have to guess the words in the review. '
         "“Driver was rude” also finds “rider shouted at me” — nothing in common "
         "except the meaning.</p></div>")
 
@@ -71,8 +71,7 @@ def render() -> None:
         if not query:
             design.html(
                 '<div style="padding:30px 40px 44px 48px"><p class="sub">'
-                "Type a complaint above, or pick one of the examples, to see "
-                "the reviews closest to it in meaning.</p></div>")
+                "Type a complaint above, or pick an example.</p></div>")
         else:
             shared.get_search()
             from src.search.query import search
@@ -149,7 +148,6 @@ def render() -> None:
             f'<h3 style="font-size:20px;margin-bottom:6px !important">Or browse '
             f"all {total} problems</h3>"
             f'<p style="font-size:12.5px;color:{design.MUTED};margin:0 0 14px">'
-            "Found automatically by grouping reviews that mean the same thing — "
-            "nobody wrote this list. Praise is left out here; there are 106 "
-            f"groups in all. Bars are the last eight weeks.</p>{rows}"
+            "Grouped automatically — nobody wrote this list. Complaints only; "
+            f"106 groups in all. Bars are the last eight weeks.</p>{rows}"
             "</div>")

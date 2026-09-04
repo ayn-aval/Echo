@@ -32,24 +32,18 @@ def render() -> None:
         '<div style="padding:34px 48px 26px;max-width:1100px">'
         '<h1 style="font-size:38px;max-width:28ch;margin-bottom:10px !important">'
         "Can you take this into a room and defend it?</h1>"
-        '<p class="sub">For deciding what to look at next, yes. As an exact '
-        "count of affected customers, no — and here is exactly where the seams "
-        "are.</p></div>")
+        '<p class="sub">For ranking what to look at next, yes. As an exact '
+        "count of affected customers, no.</p></div>")
     design.rule()
 
     cards = [
         (f"{best / 10:.0f} in 10", "search results are on topic",
-         f"Of the top ten reviews a search returns, about {best / 10:.0f} are "
-         f"about what you asked. Plain word matching on the same searches "
-         f"manages {words / 10:.1f}."),
+         f"Word matching on the same searches manages {words / 10:.1f}."),
         (f"{audit / 10:.0f} in 10", "reviews sit in a sensible group",
-         f"Judged by hand on {per_model} groupings per method, without being "
-         "shown which method produced each. The rest usually raise two problems "
-         "at once and get filed under the louder one."),
-        ("Matches", "the published research it reproduces",
-         "The language model underneath was rebuilt from scratch and scores "
-         "74.5 on the standard sentence-similarity test, against 74.2 in the "
-         "original paper."),
+         f"Judged by hand on {per_model} groupings per method, blind."),
+        ("Matches", "the research it reproduces",
+         "Rebuilt from scratch: 74.5 on the standard test, against 74.2 in "
+         "the paper."),
     ]
     for i, (col, (number, label, body)) in enumerate(zip(st.columns(3), cards)):
         with col:
@@ -68,19 +62,11 @@ def render() -> None:
     with a:
         wrong = [
             ("Two complaints in one review",
-             "Cold food <i>and</i> a rude rider — only the louder one is "
-             "counted."),
+             "Cold food <i>and</i> a rude rider — only the louder one counts."),
             ("Hindi and Hinglish",
-             "About 4 in 100 reviews. The system sees that they look alike but "
-             "not what they say, so it can group them by language rather than "
-             "by subject."),
+             "About 4 in 100. Grouped by language, not by subject."),
             ("Reviews with no detail",
-             "About 1 in 5. “Good” and “worst” form some of the largest "
-             "groups — real, and nothing anyone can act on."),
-            ("How much was checked",
-             f"26 searches and {per_model} groupings per method. Enough to "
-             "separate methods that clearly differ, not enough to separate the "
-             "close ones."),
+             "About 1 in 5. “Good” and “worst” — real, and nothing to act on."),
         ]
         cards2 = "".join(
             f'<div class="evi"><div style="font-weight:800;font-size:15px">{t}'
@@ -88,7 +74,7 @@ def render() -> None:
             f'line-height:1.5">{d}</div></div>' for t, d in wrong)
         design.html('<div style="padding:30px 44px 36px 48px">'
                     '<h3 style="font-size:21px;margin-bottom:14px !important">'
-                    f"Four things it gets wrong</h3>{cards2}</div>")
+                    f"Three things it gets wrong</h3>{cards2}</div>")
     with b:
         design.html(
             f'<div style="padding:30px 48px 6px 44px;border-left:1px solid '
@@ -96,13 +82,13 @@ def render() -> None:
             'margin-bottom:12px !important">What happens to one review</h3>'
             "</div>")
         steps = [
-            "It is pulled from Google Play and stored.",
-            "It is turned into numbers standing for its meaning, so reviews "
-            "saying the same thing in different words end up near each other.",
-            "Reviews sitting close together become one problem, named from the "
-            "words that make that group distinctive.",
-            "Each problem gets a weekly count, and an alert fires when a week "
-            "runs far above that problem's own normal.",
+            "Pulled from Google Play and stored.",
+            "Turned into numbers standing for its meaning, so reviews saying "
+            "the same thing in different words land near each other.",
+            "Reviews sitting close together become one problem, named from "
+            "what makes that group distinctive.",
+            "Each problem gets a weekly count, and an alert when a week runs "
+            "far above its own normal.",
         ]
         design.html(
             '<div style="padding:0 48px 20px 44px">'
@@ -130,9 +116,8 @@ def render() -> None:
                 '<h3 style="font-size:17px;margin-bottom:6px !important">Groups '
                 "kept off the other screens</h3>"
                 f'<p style="font-size:12.5px;color:{design.MUTED};'
-                'margin:0 0 14px">Real groupings that no team can act on — '
-                "reviews grouped by the language they are written in, or angry "
-                f"without saying why. They still count in every total.</p>{bars}"
+                'margin:0 0 14px">Real groups no team can act on. They still '
+                f"count in every total.</p>{bars}"
                 "</div>")
 
     # A keyed container, not a markdown <div>: Streamlit closes a hand-written
