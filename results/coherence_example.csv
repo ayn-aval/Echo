@@ -1,0 +1,4 @@
+position,review_id,stars,content,similarity_to_first,theme_id,theme,theme_reviews,max_shared_topic_words
+1,147826bd-b484-4ce0-8fbc-b045630a2f79,1,don't take this app fact swiggy don't install this app,1.0,101,Telling others not to install it,246,0
+2,6db36307-3067-46c9-965f-3a0f9437ff0b,1,very Bad app please not use this app,0.681,101,Telling others not to install it,246,0
+3,78f9b48a-c83f-4193-adaa-2567782d72e5,1,"do not order anything on this app, worst experience with this app.",0.6732,101,Telling others not to install it,246,0

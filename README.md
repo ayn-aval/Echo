@@ -7,7 +7,7 @@ business team which problems are biggest, which are growing, and which spiked la
 sentence-embedding model underneath is trained from scratch, reproducing
 [Sentence-BERT (Reimers & Gurevych, 2019)](https://arxiv.org/abs/1908.10084).
 
-![The fix list](results/screens/fix-list.png)
+![The results board](results/screens/board-1.png)
 
 ---
 
@@ -17,32 +17,35 @@ A food-delivery app collects thousands of reviews a week. Somewhere in them is t
 "what should we fix?" — but nobody can read them all, and keyword counting cannot find it,
 because customers describe one problem in many ways:
 
-> "app keeps crashing" · "closes by itself" · "shuts down when I open it"
+> "don't take this app fact swiggy don't install this app"
+> · "very Bad app please not use this app"
+> · "do not order anything on this app, worst experience with this app."
 
-Three phrasings, one bug, zero shared keywords. A search for *crash* finds the first and misses
-the other two. That is the gap this project closes.
+Three real reviews, one message, and not a single complaint word in common. The model files all
+three under the same topic; a keyword search for *install* finds only the first. That is the gap
+this project closes. These are not an illustration — they are the closest word-disjoint triple in
+the corpus, found by `python -m eval.pick_coherence` and shown as Figure 03 in the app.
 
-## What Echo answers
+## What the app shows
 
-| Question a growth team asks | Where Echo answers it |
+One scrolling board: what the project claims, then the evidence for each claim, then where it
+falls short. No navigation, because there is nothing to navigate to.
+
+| | |
 |---|---|
-| What happened last week? | **This week** — the week in a sentence, and the sharpest spike on record |
-| What is hurting us most right now? | **The fix list** — ranked over eight weeks, each row with its real reviews |
-| Which part of the business is worst? | **The fix list** — filter the whole list to one area |
-| Is this problem getting worse? | **The fix list** — each problem against its own eight-week average |
-| "What do people say about refunds?" | **Ask anything** — search finds paraphrases, not just the word *refund* |
-| Can I trust these numbers? | **Can I trust it** — what was measured, and what it gets wrong |
+| **Headline** | Three numbers: how close the rebuild came, how good the search is, how many topics it found |
+| **Figure 01** | The rebuild against the published paper, on seven public test sets |
+| **Figure 02** | Search quality, against keyword matching and two weaker encoders |
+| **Figure 03** | Three complaints grouped together that share no complaint word |
+| **Figure 04** | The ten largest complaint topics, out of 57 |
+| **Figure 05** | One topic week by week, measured against its own normal level |
+| **Figure 06** | Four limits found during testing and left in the results |
+| **Figure 07** | A live search over 45,864 reviews, running the real model end to end |
 
-The app opens on **This week**, which reports the latest complete week by name,
-puts the one thing worth a decision in a red field, and shows three real reviews
-that share no keyword alongside the single problem they were filed under.
+Figure 07 is the only part that runs the model rather than reporting on it. It uses the same
+two-stage pipeline Figure 02 scores, so the demo shows what the number claims.
 
-![This week](results/screens/this-week.png)
-
-Two findings the system surfaced that keyword counting would not have:
-
-- **"Surge fee charged in the rain" is up 453%** — a complaint that never says the word "surge"
-- **Delivery accounts for 2,088 of the period's unhappy customers**, rated 2.2 out of 5
+![Search it yourself](results/screens/board-search.png)
 
 ---
 
@@ -81,7 +84,7 @@ flowchart LR
     E --> B
     B --> G["weekly series<br/>+ z-score alerts"]
     G --> B
-    B --> H["Streamlit dashboard<br/>3 screens"]
+    B --> H["Streamlit results board<br/>seven figures"]
     F --> H
 ```
 
@@ -390,8 +393,10 @@ needs nothing on disk at all.
 | `python -m eval.benchmark_search` | `results/search_benchmark.csv` — accuracy and latency |
 | `python -m eval.clustering_comparison` | `results/clustering_comparison.csv` |
 | `python -m eval.check_readme` | **asserts every figure in this README still matches `results/`** |
-| `python -m eval.check_app` | parses and renders all 7 dashboard screens |
-| `python -m eval.shoot_app` | `results/screens/*.png` |
+| `python -m eval.check_app` | renders the board; fails on emoji or mathematical notation |
+| `python -m eval.check_numbers` | **asserts every fixed number on the board matches `results/`** |
+| `python -m eval.pick_coherence` | `results/coherence_example.csv` — the Figure 03 evidence |
+| `python -m eval.shoot_app` | `results/screens/*.png`, plus three structural assertions |
 
 Longer write-ups per phase: [`results/phase3_notes.md`](results/phase3_notes.md),
 [`phase4_notes.md`](results/phase4_notes.md), [`phase5_notes.md`](results/phase5_notes.md),
@@ -438,7 +443,7 @@ src/training/     siamese NLI training (raw PyTorch), pair mining, domain adapta
 src/analytics/    weekly series, spike detection
 src/db/           connection, schema, init
 src/utils/        device detection (mps → cuda → cpu), config
-app/              Streamlit dashboard — 3 screens
+app/              Streamlit results board — one page, seven figures
 eval/             every reported metric comes from here
 results/          metrics as CSV, plots and screenshots as PNG
 notebooks/        GPU training notebooks

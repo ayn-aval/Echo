@@ -13,7 +13,7 @@
 | 4 — Domain adaptation | **done. Precision@10 45.77 -> 61.15, STS 72.17 -> 74.54** |
 | 5 — Theme discovery | **done. 110 themes; audit 82.4% vs GloVe's 44.1%** |
 | 6 — Semantic search | **done. 75.77 P@10 two-stage — first system to beat TF-IDF** |
-| 7 — Streamlit dashboard | **done. 4 screens, top-tab shell; `streamlit run app/main.py`** |
+| 7 — Streamlit dashboard | **done. Now a single dark results board, seven figures; `streamlit run app/main.py`** |
 | 8 — Trends and alerts | **done. 16 alerts at z>=3; Power BI guide written** |
 | 9 — Write-up and polish | **done. README, cleanup, traceability check** |
 
@@ -817,6 +817,114 @@ The reference uses `#bab6b6` for the fix-list sparklines. At **1.80:1** against
 the ground that is invisible, and a 5px mark carries no label to fall back on, so
 `spark()` uses `neutral-700` at 5.83:1 instead.
 
+## Fifth design pass — the dark results board, in plain language
+
+A third zip arrived (`Echo_ Customer feedback intelligence.zip`, 5 Sep) and the
+user asked for "the ui/ux and the content be exactly same as in this streamlit
+script". It is a different product from the four-tab dashboard: **one dark
+scrolling board** — top bar, three headline numbers, six numbered figures, a
+pipeline strip, a footer. No sidebar, no tabs, no navigation.
+
+The user then added the constraint that governed every line of copy:
+
+> "I dont want you to add anything complex and heavily mathematical in the whole
+> presentation. Please dont do it. It makes too much confusion and even I cannot
+> understand it. So keep it simple. Keep the language simple but professional."
+
+So the reference's layout was adopted exactly and its **wording was not**. The
+reference is written for an ML reviewer — "Spearman ρ × 100", "Precision@10",
+"3.4σ", "cosine to r₁". Every one of those was translated. The numbers stayed
+exact; the notation went.
+
+### The same bug, for the third time
+
+The reference opens a `<div>` in one `st.markdown` call and closes it in a later
+one. Streamlit auto-closes each block, so every wrapper is empty. Measured in its
+own DOM on port 8601 before anything was adopted:
+
+```
+.hero elements: 1   ->  contains 0 of the 3 headline numbers
+.band elements: 3   ->  two hold 0 children (Figures 03 and 06)
+left edge:  topbar x=56    headline x=0    Figure 03 card x=0
+```
+
+Visible in its own screenshot: no left margin anywhere below the top bar, Figure
+02's scores clipped off the right edge, Figure 05's chart running off-screen, and
+Figure 01's footer colliding with Figure 02's caption ("scale 60 -> 85over NLI-only
+encoder"). Only the pipeline strip and the footer render correctly — the two
+blocks emitted as a *single* call. `st.container(key=...)` fixes it, and
+`eval/shoot_app.py` now asserts it rather than assuming it.
+
+### Two decisions the user made
+
+- **The live search survives** as Figure 07. The reference has no search;
+  dropping it would have removed the only part of the page that runs the model.
+- **The honest reproduction leads the headline.** Two different models sit behind
+  the reference's "74.54". The rebuild scores **72.17**; the version later tuned
+  on Swiggy reviews scores **74.54**. The headline reports 72.17 against the
+  paper's 74.21 and says the published model trained on three times as much data.
+  The 74.54 appears as its own stat, not disguised as the reproduction.
+
+### Numbers corrected against the reference
+
+| the reference said | the truth |
+|---|---|
+| "within seed variance on all 7 tasks" | short on six of seven, ahead on 2013 |
+| P@10 0.65 vs BM25 0.40 | 6.5 of 10 **is** the keyword baseline; no BM25 run exists |
+| "87% correctly assigned on audit" | 28 of 34, and 34 is the whole sample |
+| "106 topics" as the complaint count | 110 topics, 106 actionable, **57 complaints** |
+| "13% of a 400-review manual audit" | the audit is 34 reviews per model |
+| invented cluster names and weekly series | the real topics and the real weeks |
+
+### Figure 03 had to be found, not written
+
+The reference's "same meaning, no shared words" trio is invented. `eval/pick_coherence.py`
+searches for a real one under a stated rule: among complaints the model put in one
+topic that share **no** topic word, return the three it placed closest together.
+Ranking that way round matters — maximising closeness first returns
+near-restatements of one sentence, which prove nothing.
+
+Three attempts were needed. A four-character stem counted "taking" and "takes" as
+different words, so the first winner looked disjoint and was not; two-digit numbers
+were dropped by a length floor, so three reviews all saying "45 mins" counted as
+sharing nothing. The final answer, from 87 candidate triples: topic 101, *Telling
+others not to install it* — install / use / order, at 68% and 67%.
+
+### Verification
+
+- The palette was contrast-checked before anything was built on it. **Four of the
+  reference's own tones fail**: its figure labels (4.16:1), its card labels
+  (3.55:1) and its comparison bars (2.26:1, and 1.98:1 against their own track).
+  Corrected to `.48`, `.48` and `.37` — visually identical, all passing.
+- `eval/check_app.py` now bans **mathematical notation** outright, with no
+  per-screen exemption. The only allowance is the paper's title in the citation,
+  which is stripped before scanning rather than exempted by rule.
+- `eval/check_numbers.py` is new and worth keeping: it asserts every fixed literal
+  in `app/results.py` still equals what its source CSV says. 38 checks, all
+  passing. The board's copy lives as literals for speed; this is what stops it
+  drifting from `results/`.
+- `eval/shoot_app.py` asserts three things before photographing: keyed containers
+  wrap their widgets, nothing overflows the right edge, and every band starts on
+  the same 56px margin. All three are failures the reference has.
+
+### Found while building
+
+- **Figure 07 was running stage one only**, so "refund never came back to my
+  account" returned reviews whose only link was the word *never*. Switched to
+  `search_reranked` — the same two-stage pipeline Figure 02 scores — and all ten
+  results became refund complaints.
+- **`gap: 0` on the vertical block leaves no slack**, so a control taller than the
+  height Streamlit reserved for it overlaps whatever follows. A 45px text input in
+  a 38px slot buried the "Or try one of these" label under the chips by 16px.
+  Measured, not guessed; fixed with explicit margins on the containers.
+- **A stale module survived a hot reload again** — the running server kept an old
+  `theme.py` and raised `TypeError: chip_row() got an unexpected keyword argument`.
+  Same class of failure as the deployed `ImportError`. Restarting the process is
+  the fix; there is no code fault.
+- Streamlit sanitises widget keys into class names, so `st.button(key="ex_refund
+  never came back...")` becomes `.st-key-ex_refund`. Harmless here, but the CSS
+  selector `[class*="st-key-chips_"]` had to be written to avoid matching them.
+
 ## Decisions made
 
 | decision | why |
@@ -898,8 +1006,9 @@ that reads like a code bug. Restart the server after touching anything under
 
 ## Exact next step
 
-**Phase 9 is complete, and the app has had two usability passes.** Nothing is
-blocking. The one unfinished piece of *delivery* is the **Streamlit Community
+**Phase 9 is complete, and the app has now had five design passes** — the current
+one is a single dark results board built to a supplied reference, in plain
+language with no mathematical notation anywhere. Nothing is blocking. The one unfinished piece of *delivery* is the **Streamlit Community
 Cloud deploy**, which last failed on Python 3.14 resolving `requirements.txt`;
 the app must be deleted and recreated with Python 3.11 chosen in Advanced
 settings before the first build, with the secret from `.streamlit/secrets.toml`.
@@ -946,7 +1055,11 @@ python -m src.search.query "app keeps crashing"  # semantic search
 python -m src.search.rerank "refund not received"   # two-stage search
 python -m eval.build_pool --augment --with-rerank    # pool the reranker BEFORE scoring it
 python -m eval.benchmark_search  # accuracy + p50/p95 latency
-streamlit run app/main.py       # the dashboard
+streamlit run app/main.py       # the results board
+python -m eval.check_app        # renders it; fails on emoji or notation
+python -m eval.check_numbers    # every fixed number on the board vs results/
+python -m eval.pick_coherence   # the Figure 03 evidence, found under a stated rule
+python -m eval.shoot_app        # structural assertions, then screenshots
 python -m src.clustering.theme_names       # readable topic names
 python -m src.clustering.theme_categories  # roll topics into business areas
 python -m src.analytics.weekly             # Phase 8: weekly series (drops partial weeks)
